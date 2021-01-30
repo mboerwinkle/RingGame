@@ -1,0 +1,4 @@
+ringgameclient
+__pycache__
+*.pyc
+vgcore*
