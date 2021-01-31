@@ -10,6 +10,7 @@
 #include "LoadData.h"
 #include "Gamestate.h"
 #include "Delay.h"
+#include "Track.h"
 
 #define FOV 90 //PI/2
 extern int errno;
@@ -18,6 +19,7 @@ pthread_t graphicsthread;
 
 char* frame;//This is the network data for what to draw.
 sem_t frameAccess;
+int frameCount=0; // How many net frames have elapsed since the last draw
 
 struct shaderProg{
 	GLuint frag_shader;
@@ -287,6 +289,11 @@ void drawFrame(){
 	buf+=4;
 	//printf("Got Frame: %d %d %d (%f %f %f %f) Objects: %d\n", loc[0], loc[1], loc[2], rot[0], rot[1], rot[2], rot[3], objectCount);
 	setCameraLoc(loc, rot);
+	{
+		float aim[3] = {1,0,0};
+		rotateVec(aim, rot, aim);
+		trackResetShips(loc, aim, frameCount);
+	}
 	drawStars();
 	//printf("%d objects\n", objectCount);
 	for(int oidx = 0; oidx < objectCount; oidx++){
@@ -308,12 +315,33 @@ void drawFrame(){
 		/*if(name[0] != 0){
 			printf("model name %s\n", name);
 		}*/
+
+		if (mid == 0) { // Janky hard-coded test for human fighter
+			if(trackAddShip(loc)) { // modifies loc if successful
+				for (int colorIx = 0; colorIx < 4; colorIx++) { // TODO is this ARGB or RGBA?
+					color[colorIx] = color[colorIx]*0.25 + 0.75; // Lighten
+				}
+				name[0] = '\0';
+				drawModel(mid, color, loc, rot, name);
+			}
+		}
 	}
+
 	for(int tIdx = 0; tIdx < teamCount; tIdx++){
 		char scoreMsg[80];
 		sprintf(scoreMsg, "Team %d: %d", tIdx, teamScores[tIdx]);
 		drawHudText(scoreMsg, &myfont, 0, myfont.invaspect*1.5*tIdx*0.02, 0.02, &(teamcolors[3*tIdx]));
 	}
+
+	// Draw the crosshairs. Conveniently, we're already setup with the HUD drawing program
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	GLfloat crosshairs[8] = {0.47,0.50, 0.53,0.50,   0.50,0.47, 0.50,0.53};
+	glVertexAttribPointer(hudShader.a_loc, 2, GL_FLOAT, GL_FALSE, 0, (void*)crosshairs);
+	glUniform1f(hudShader.u_scale, 1.0);
+	glUniform1f(hudShader.u_aspect, 1.0);
+	glUniform2f(hudShader.u_offset, 0,0);
+	glUniform3f(hudShader.u_color, 1,0,0);
+	glDrawArrays(GL_LINES, 0, 4);
 }
 void drawConsole(){
 	glDisable(GL_DEPTH_TEST);
@@ -353,6 +381,7 @@ void* graphicsLoop(void* none){
 		if(gamestate.screen == CONS){
 			drawConsole();
 		}
+		frameCount = 0;
 		sem_post(&frameAccess);
 		glfwSwapBuffers(window);
 	}

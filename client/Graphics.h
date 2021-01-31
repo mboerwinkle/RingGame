@@ -16,6 +16,7 @@ struct font{
 
 extern char* frame;
 extern sem_t frameAccess;
+extern int frameCount;
 
 
 extern GLFWwindow* window;

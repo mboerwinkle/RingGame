@@ -20,6 +20,7 @@ void processNetData(char* buf){
 		sem_wait(&frameAccess);
 		free(frame);
 		frame = buf;
+		frameCount++;
 		sem_post(&frameAccess);
 	}else if(!strncmp("CONS", buf, 4)){
 		//printf("%s\n", buf);
@@ -37,6 +38,7 @@ int main(int argc, char** argv){
 	printf("# Loading Data\n");
 	loadData();
 	printf("# Starting Graphics Loop\n");
+	glfwMakeContextCurrent(NULL);
 	startGraphicsLoop();//we have to do this separately, because loadData requires the GL context, which cannot be shared between threads
 	printf("# Starting Networking\n");
 	if(argc != 1){
