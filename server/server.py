@@ -9,7 +9,8 @@ import struct
 import threading
 import os
 from collections import deque as deque
-from obj import Obj
+import obj
+
 from placement import Placement
 import waitFramerate
 from hypercubeCollide import hypercol
@@ -73,7 +74,7 @@ def readManifest():
 def setupNewRound():
 	Client.dieAll()
 	CommandPoint.removeAll()
-	Obj.removeAll()
+	obj.removeAll()
 	Team.clear()
 	Team("CYAN", (0.0, 1.0, 0.941))
 	Team("MGTA", (1.0, 0.0, 0.941))
@@ -92,7 +93,7 @@ def setupNewRound():
 	#	cp.setLocation(loc)
 	##
 	for idx in range(5):
-		asteroid = Obj(random.choice((3, 4, 6)), 2)
+		asteroid = obj.Obj(random.choice((3, 4, 6)), 2)
 		asteroid.pos.randomize(20000)
 
 
@@ -117,7 +118,9 @@ def roundLoop():
 		#Find Collisions
 		myscene = collide.newScene(collisionRules)
 		collide.selectScene(myscene)
-		for o in Obj.objects:
+		bscollidedict = dict()#FIXME
+		bscollideind = 0
+		for o in obj.objects.values():
 			convcoord = ()
 			for idx in range(3):
 				convcoord = convcoord+(int(o.pos.loc[idx]/manifest['resolution']*2.0),)
@@ -125,19 +128,18 @@ def roundLoop():
 			orient = collide.createOrientation(*o.pos.rot)
 			oinst = collide.newOInstance(manifest['models'][o.mid]['name'], o.collisionClass, pt, orient, 1.0)
 			collide.addInstance(oinst)
-		#collideServer.writeCollide(b'C')
-		#collideResBytes = collideServer.readRawCollide()
-		#collideResCount = struct.unpack_from('@i', collideResBytes)[0]
+			bscollidedict[bscollideind] = o
+			bscollideind+=1
 		collide.calculateScene()
 		c = collide.getCollisions()
 		collide.freeScene(myscene)
-		for o in Obj.objects:
+		for o in obj.objects.values():
 			o.collisions.clear()
-		if c[0] != 0:
-			print("Got",c[0],"collisions")
+		#if c[0] != 0:
+		#	print("Got",c[0],"collisions")
 		for cIdx in range(c[0]):#first array element is the number of collisions
-			o1 = Obj.objects[c[1+2*cIdx]]
-			o2 = Obj.objects[c[2+2*cIdx]]
+			o1 = bscollidedict[c[1+2*cIdx]]
+			o2 = bscollidedict[c[2+2*cIdx]]
 			o1.collisions.add(o2)
 			o2.collisions.add(o1)
 		#Step Physics
@@ -195,6 +197,13 @@ def handleClientInput(i):
 			cli.runcommand(tok[1:])
 		else:
 			Client.chat(cli.name+": "+i.msg[4:80])#truncate 'COMM', and limit to 80 chars
+	elif tok[0] == 'RDEF':
+		uid = int(tok[1], 16);
+		if uid in obj.objects.keys():
+			targ = obj.objects[int(tok[1], 16)]
+			cli.sendDef(targ)
+		else:
+			print("ignoring request for", uid)
 	else:
 		print("Unknown message from "+str(i.id)+": "+str(i.msg))
 
@@ -254,7 +263,7 @@ class Missile:
 			dm.remove()
 		Missile.deadMissiles = set()
 	def __init__(self, originObj):
-		self.obj = Obj(5, 3)
+		self.obj = obj.Obj(5, 3)
 		self.obj.pos.copy(originObj.pos)
 		self.obj.pos.moveForward(0.6*(manifest['models'][self.obj.mid]['diameter']+manifest['models'][originObj.mid]['diameter']))
 		self.lifetime = int(3*framerate)
@@ -279,8 +288,8 @@ class CommandPoint:
 		if team != None:
 			totemColor = team.color
 		#The obj is the capture box. The totem is an optional auxillary solid marker
-		self.obj = Obj(objMid, 0, color=(0.5, 0.75, 1.0), solid=False)
-		self.totem = Obj(totemMid, 0, color=totemColor, solid=True)
+		self.obj = obj.Obj(objMid, 0, color=(0.5, 0.75, 1.0), solid=False)
+		self.totem = obj.Obj(totemMid, 0, color=totemColor, solid=True)
 		self.obj.pos.randomize(20000)
 		self.totem.pos = self.obj.pos
 		CommandPoint.commandobjects[self.obj] = self
@@ -292,7 +301,7 @@ class CommandPoint:
 		self.team = team
 		if self.team != None:
 			self.team.commandPoints.add(self)
-		self.totem.color = team.color
+		self.totem.setColor(team.color)
 	def setLocation(self, p):
 		self.obj.pos.moveAbs(p)
 		self.totem.pos.moveAbs(p)
@@ -311,7 +320,6 @@ class Client:
 		self.soc = soc
 		self.id = newCliId
 		newCliId += 1
-		self.freeCam = Placement()
 		self.buf = bytes()
 		self.control = 0
 		self.pitch = 0.0
@@ -331,11 +339,7 @@ class Client:
 			tok[tidx] = tok[tidx].upper()
 		if tok[0] == '/NAME':
 			self.name = tok[1]
-			for idx in range(8):
-				if idx < len(self.name):
-					self.obj.name[idx] = ord(self.name[idx])
-				else:
-					self.obj.name[idx] = 0
+			self.obj.setName(self.name)
 			self.sendmsg('CONSName set: '+self.name)
 		elif tok[0] == '/LIST':
 			msg = "CONS"
@@ -352,13 +356,9 @@ class Client:
 		color = (0.7, 0.5, 0.5)
 		if self.team != None:
 			color = self.team.color
-		self.obj = Obj(0, 1, color = color)
-		for idx in range(8):
-			if idx < len(self.name):
-				self.obj.name[idx] = ord(self.name[idx])
-			else:
-				self.obj.name[idx] = 0
+		self.obj = obj.Obj(0, 1, color = color, name = self.name)
 		self.obj.pos.randomize(20000)
+		self.sendAsg()
 	def die(self):
 		if self.obj == None:
 			return
@@ -382,20 +382,21 @@ class Client:
 					cliInputs.appendleft(myinput)
 					#print("Got new client msg: "+str(myinput.msg)+"  Remaining buf: "+str(self.buf))
 					break
-
+	def sendAsg(self):
+		if(self.obj):
+			self.send(b"ASGN" + struct.pack('<i', self.obj.uid))
+	def sendDef(self, o):
+		self.send(b"ODEF" + o.netDef())
 	def sendUpdate(self):
-		fMsg = b"FRME" + self.freeCam.netPack() +Team.netPack()+ struct.pack('<i', len(Obj.objects))
-		for o in Obj.objects:
+		fMsg = b"FRME" +Team.netPack()+ struct.pack('<i', len(obj.objects))
+		for o in obj.objects.values():
 			fMsg += o.netPack()
-		try:
-			self.soc.sendall(len(fMsg).to_bytes(4, byteorder='little')+fMsg)
-		except Exception as e:
-			print("Socket failed to write")
-			self.ts_remove()
+		self.send(fMsg)
 	def sendmsg(self, msg):
-		#print("sending "+str(msg))
+		self.send(msg.encode("UTF-8"))
+	def send(self, data):
 		try:
-			self.soc.sendall(len(msg).to_bytes(4, byteorder='little')+msg.encode("UTF-8"))
+			self.soc.sendall(len(data).to_bytes(4, byteorder='little')+data)
 		except Exception as e:
 			print("Socket failed to write")
 			self.ts_remove()
@@ -405,27 +406,19 @@ class Client:
 		#return targetValue
 	def applyControls(self):
 		global framerate
+		if self.obj == None:
+			return
 		c = self.control
 		self.yaw = Client.controlRange(((c>>1)&1)-((c>>2)&1), self.yaw)
 		self.pitch = Client.controlRange(((c>>4)&1)-((c>>3)&1), self.pitch)
 		self.roll = Client.controlRange(((c>>7)&1)-((c>>5)&1), self.roll)
 		self.throttle = Client.controlRange(((c>>8)&1)-((c>>6)&1), self.throttle)
 		#print(str(self.throttle)+' '+str(self.yaw)+' '+str(self.pitch)+' '+str(self.roll))
-
-		posObj = None
-		speed = 15000/framerate
-		turnspeed = 3.0/framerate
-		trange = [-1,0,1]
-		diam = 0
-		if self.obj != None:
-			posObj = self.obj.pos
-			maniModel = manifest['models'][self.obj.mid]
-			speed = maniModel['speed']/framerate
-			trange = maniModel['trange']#throttle position range information
-			turnspeed = maniModel['turn']/framerate
-			diam = maniModel['diameter']
-		else:
-			posObj = self.freeCam
+		posObj = self.obj.pos
+		maniModel = manifest['models'][self.obj.mid]
+		speed = maniModel['speed']/framerate
+		trange = maniModel['trange']#throttle position range information
+		turnspeed = maniModel['turn']/framerate
 		posObj.rotZ(self.yaw*turnspeed)
 		posObj.rotY(self.pitch*turnspeed)
 		posObj.rotX(self.roll*turnspeed)
@@ -436,17 +429,9 @@ class Client:
 		else:
 			realthrottle = trange[1]-(self.throttle*(trange[0]-trange[1]))
 		posObj.moveForward(realthrottle*speed)
-
-		self.freeCam.orientLike(posObj)
-		self.freeCam.moveAbs(posObj.loc)
-		self.freeCam.moveRel([i*diam*0.5 for i in self.obj.pos.up])
-		self.freeCam.moveRel([i*-diam*1 for i in self.obj.pos.forward])
-		if self.obj != None:
-			if c & 1:#Missile
-				self.control &= ~1
-				Missile(self.obj)
-
-			#print("Location: "+str(self.obj.pos.loc))
+		if c & 1:#Missile
+			self.control &= ~1
+			Missile(self.obj)
 	def ts_remove(self):#thread-safe
 		self.dead = True
 	def remove(self):

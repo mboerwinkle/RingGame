@@ -1,26 +1,45 @@
 from placement import Placement
 import struct
+#FIXME use '!' (network order) instead of '<' in all pack functions
+objects = dict()
+nextObjUid = 0
+def removeAll():
+	global objects, nextObjUid
+	objects = dict()
+def getUid():
+	global objects, nextObjUid
+	m = 2000000000
+	nextObjUid = (nextObjUid+1)%m
+	while nextObjUid in objects.keys():
+		nextObjUid = (nextObjUid+1)%m
+	return nextObjUid
 class Obj:
-	nextObjUid = 0;
-	objects = []
-	def __init__(self, mId, collisionClass, color=(0.8, 0.8, 0.8), solid=True):
+	def __init__(self, mId, collisionClass, color=(0.8, 0.8, 0.8), solid=True, name = ""):
+		global objects
 		self.solid = solid
 		self.collisionClass = collisionClass
 		self.collisions = set()
 		self.color = color
 		self.mid = mId
-		self.uid = Obj.nextObjUid
-		self.name = bytearray(("\0" * 8).encode('ascii'))
-		Obj.nextObjUid += 1
+		self.uid = getUid()
+		self.name = name
+		self.predMode = 0 #prediction mode for clients.
+		self.revision = 0
 		self.pos = Placement()
-		Obj.objects.append(self)
-		#print("New obj "+str(self.uid))
+		objects[self.uid] = self
 	def setColor(self, c):
 		self.color = c
+		self.stepRevision()
+	def setName(self, n):
+		self.name = n
+		self.stepRevision()
+	def stepRevision(self):
+		self.revision = (self.revision+1)%100;
 	def netPack(self):
-		return struct.pack('<i', self.mid) + self.name + struct.pack('<ffff', self.color[0], self.color[1], self.color[2], 1.0) + self.pos.netPack()
+		return struct.pack('<ib', self.uid, self.revision) + self.pos.netPack()
+	def netDef(self):
+		return struct.pack('<ibibfff', self.uid, self.revision, self.mid, self.predMode, self.color[0], self.color[1], self.color[2])+(self.name+'\0').encode("UTF-8", errors="replace")
 	def remove(self):
-		Obj.objects.remove(self)
-	def removeAll():
-		Obj.objects = []
-		Obj.nextObjUid = 0
+		global objects
+		objects.pop(self.uid)
+

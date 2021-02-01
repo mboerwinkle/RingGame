@@ -7,14 +7,18 @@
 #include <GLFW/glfw3.h>
 #include <pthread.h>
 #include <math.h>
+#include <assert.h>
+#include "Graphics.h"
 #include "LoadData.h"
 #include "Gamestate.h"
 #include "Delay.h"
+#include "ExternLinAlg.h"
 
 #define FOV 90 //PI/2
 extern int errno;
 
 pthread_t graphicsthread;
+mb_itq graphicsitq;
 
 char* frame;//This is the network data for what to draw.
 sem_t frameAccess;
@@ -34,72 +38,7 @@ GLfloat mod_scl[16] = {-1, 0, 0, 0, 0, -1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1};//Scal
 GLfloat cam_lens[16];//Camera lens (clipping, fov, etc)
 GLfloat cam_lens_ortho[16];
 struct shaderProg solidShader, starShader, hudShader;
-float distv3f(float* v){
-	float d = 0;
-	for(int idx = 0; idx < 3; idx++){
-		d += v[idx]*v[idx];
-	}
-	return sqrt(d);
-}
-void norm3f(float* v){
-	float d = distv3f(v);
-	v[0] /= d;
-	v[1] /= d;
-	v[2] /= d;
-}
 
-void cross(float* res, float* a, float* b){
-	res[0]=a[1]*b[2]-a[2]*b[1];
-	res[1]=a[2]*b[0]-a[0]*b[2];
-	res[2]=a[0]*b[1]-a[1]*b[0];
-}
-
-void mat4x4Multf(float* res, float* m1, float* m2){
-	for(int x = 0; x < 4; x++){
-		for(int y = 0; y < 4; y++){
-			float v = 0;
-			for(int i = 0; i < 4; i++){
-				v += m1[y+4*i]*m2[i+4*x];
-			}
-			res[y+4*x] = v;
-		}
-	}
-}
-void mat4x4fromQuat(float* M, float *rot){
-	M[0] = 1-2*rot[2]*rot[2]-2*rot[3]*rot[3];
-	M[1] = 2*rot[1]*rot[2]+2*rot[0]*rot[3];
-	M[2] = 2*rot[1]*rot[3]-2*rot[0]*rot[2];
-	M[3] = 0;
-	M[4] = 2*rot[1]*rot[2]-2*rot[0]*rot[3];
-	M[5] = 1-2*rot[1]*rot[1]-2*rot[3]*rot[3];
-	M[6] = 2*rot[2]*rot[3]+2*rot[0]*rot[1];
-	M[7] = 0;
-	M[8] = 2*rot[1]*rot[3]+2*rot[0]*rot[2];
-	M[9] = 2*rot[2]*rot[3]-2*rot[0]*rot[1];
-	M[10] = 1-2*rot[1]*rot[1]-2*rot[2]*rot[2];
-	M[11] = 0;
-	M[12] = 0;
-	M[13] = 0;
-	M[14] = 0;
-	M[15] = 1;
-}
-void mat4x4Scalef(float* res, float xs, float ys, float zs){
-	res[0] *= xs;
-	res[5] *= ys;
-	res[9] *= zs;
-}
-void mat4x4Transf(float* res, float x, float y, float z){
-	res[12] += x;
-	res[13] += y;
-	res[14] += z;
-}
-void mat4x4idenf(float* res){
-	for(int i = 0; i < 16; i++) res[i] = 0.0;
-	res[0] = 1.0;
-	res[5] = 1.0;
-	res[10] = 1.0;
-	res[15] = 1.0;
-}
 void cerr(char* msg){
 	int err = glGetError();
 	while(err != 0){
@@ -109,23 +48,6 @@ void cerr(char* msg){
 }
 
 int cloc[3];//Camera location
-
-void quatMult(float* a, float* b, float* r){
-	float ret[4];
-	ret[0]=(b[0] * a[0] - b[1] * a[1] - b[2] * a[2] - b[3] * a[3]);
-	ret[1]=(b[0] * a[1] + b[1] * a[0] + b[2] * a[3] - b[3] * a[2]);
-	ret[2]=(b[0] * a[2] - b[1] * a[3] + b[2] * a[0] + b[3] * a[1]);
-	ret[3]=(b[0] * a[3] + b[1] * a[2] - b[2] * a[1] + b[3] * a[0]);
-	memcpy(r, ret, 4*sizeof(float));
-}
-
-void rotateVec(float* t, float* r, float* ret){
-	float p[4] = {0, t[0], t[1], t[2]};
-	float revRot[4] = {r[0], -r[1], -r[2], -r[3]};
-	quatMult(r, p, p);
-	quatMult(p, revRot, p);
-	memcpy(ret, &(p[1]), 3*sizeof(float));
-}
 
 int XRES = 800;
 int YRES = 800;
@@ -168,45 +90,6 @@ void drawStars(){
 	glUniformMatrix4fv(starShader.u_cam, 1, GL_FALSE, cam_mat);
 	glUniform3f(solidShader.u_offset, cloc[0], cloc[1], cloc[2]);
 	glDrawArrays(GL_POINTS, 0, starCount);
-}
-//https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/gluPerspective.xml
-void gluPerspective(float* m, float fovy, float aspect, float zNear, float zFar){
-	float f = 1.0/tan(fovy/2.0);
-	m[0] = f/aspect;
-	m[1] = 0;
-	m[2] = 0;
-	m[3] = 0;
-	m[4] = 0;
-	m[5] = f;
-	m[6] = 0;
-	m[7] = 0;
-	m[8] = 0;
-	m[9] = 0;
-	m[10] = (zFar+zNear)/(zNear-zFar);
-	m[11] = -1;
-	m[12] = 0;
-	m[13] = 0;
-	m[14] = (2.0*zFar*zNear)/(zNear-zFar);
-	m[15] = 0;
-}
-//https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/glOrtho.xml
-void glOrthoEquiv(float* m, float left, float right, float bottom, float top, float nearval, float farval){
-	m[0] = 2.0/(right-left);
-	m[1] = 0;
-	m[2] = 0;
-	m[3] = 0;
-	m[4] = 0;
-	m[5] = 2.0/(top-bottom);
-	m[6] = 0;
-	m[7] = 0;
-	m[8] = 0;
-	m[9] = 0;
-	m[10] = -2.0/(farval-nearval);
-	m[11] = 0;
-	m[12] = -((right+left)/(right-left));
-	m[13] = -((top+bottom)/(top-bottom));
-	m[14] = -((farval+nearval)/(farval-nearval));
-	m[15] = 1;
 }
 char* readFileContents(char* path){
 	FILE* fp = fopen(path, "r");
@@ -271,43 +154,64 @@ void drawFrame(){
 	buf += 4;
 	int loc[3];
 	float rot[4];
-	float color[4];
-	
-	memcpy(loc, buf, 12);
-	buf+=12;
-	memcpy(rot, buf, 16);
-	buf+=16;
 	int teamCount;
 	memcpy(&teamCount, buf, 4);
 	buf+=4;
 	int* teamScores = (int*)buf;
 	buf+=4*teamCount;//get past the scores.
-	int objectCount;
-	memcpy(&objectCount, buf, 4);
+	int objectCount = *(int*)buf;
 	buf+=4;
 	//printf("Got Frame: %d %d %d (%f %f %f %f) Objects: %d\n", loc[0], loc[1], loc[2], rot[0], rot[1], rot[2], rot[3], objectCount);
-	setCameraLoc(loc, rot);
+	for(int idx = 0; idx < objectCount; idx++){
+		if(*(int*)(buf+idx*33) == gamestate.myShipId){
+			objDef* mydef = objDefGet(gamestate.myShipId);
+			if(!mydef || mydef->pending == WAITING) break;
+			memcpy(cloc, buf+idx*33+5, 12);
+			memcpy(rot, buf+idx*33+17, 16);
+			float up[3] = {0, 0, 1};
+			float front[3] = {1, 0, 0};
+			float eye[3] = {0, 0, 0};//eye stays at 0 since we use a separate method for offsets
+			rotateVec(up, rot, up);
+			rotateVec(front, rot, front);
+			float mdiameter = models[mydef->modelId].diameter;
+			for(int dim = 0; dim < 3; dim++){
+				cloc[dim] += (-1.2 * front[dim] +  0.5 * up[dim]) * mdiameter;
+			}
+			mat4x4idenf(cam_mat);
+			glhLookAtf2(cam_mat, eye, front, up);
+			break;
+		}
+	}
 	drawStars();
 	//printf("%d objects\n", objectCount);
 	for(int oidx = 0; oidx < objectCount; oidx++){
-		int mid;
-		memcpy(&mid, buf, 4);
+		int uid = *(int*)buf;
 		buf+=4;
-		char name[9];
-		memcpy(name, buf, 8);
-		name[8] = 0;
-		buf+=8;
-		memcpy(color, buf, 16);
-		buf+=16;
+		char revision = *(char*)buf;
+		buf+=1;
 		memcpy(loc, buf, 12);
 		buf+=12;
 		memcpy(rot, buf, 16);
 		buf+=16;
 		//printf("Model: %d (%d %d %d) (%f %f %f %f)\n", mid, loc[0], loc[1], loc[2], rot[0], rot[1], rot[2], rot[3]);
-		drawModel(mid, color, loc, rot, name);
-		/*if(name[0] != 0){
-			printf("model name %s\n", name);
-		}*/
+		objDef* o = objDefGet(uid);
+		if(o){
+			o->age = 0;
+			if(o->pending != WAITING){
+				drawModel(o->modelId, o->color, loc, rot, o->name);
+				if(o->revision != revision && o->pending == DONE){
+					o->pending = WAITINGVERSION;
+					int* msg = malloc(sizeof(int));
+					*msg = uid;
+					mb_itqAdd(&graphicsitq, msg);
+				}
+			}
+		}else{
+			objDefInsert(uid);
+			int* msg = malloc(sizeof(int));
+			*msg = uid;
+			mb_itqAdd(&graphicsitq, msg);
+		}
 	}
 	for(int tIdx = 0; tIdx < teamCount; tIdx++){
 		char scoreMsg[80];
@@ -360,6 +264,7 @@ void* graphicsLoop(void* none){
 }
 
 void initGraphics(){
+	mb_itqInit(&graphicsitq);
 	frame = NULL;
 	sem_init(&frameAccess, 0, 1);
 	glfwSetErrorCallback(error_callback);
@@ -421,7 +326,7 @@ void drawModel(int idx, float* color, int* loc, float* rot, char* name){
 	glUniformMatrix4fv(solidShader.u_modRot, 1, GL_FALSE, mod_rot);
 	glUniform3f(solidShader.u_color, color[0], color[1], color[2]);
 	glDrawArrays(GL_TRIANGLES, 0, m->facetCount*3);
-	if(name[0] != 0){//model has a name
+	if(name && name[0] != 0){//model has a name
 		float offsetMat[16];
 		float letterRotateMat[16];
 		float letterRotateQuat[4] = {-0.5, 0.5, 0.5, -0.5};
@@ -469,57 +374,6 @@ void drawHudText(char* str, struct font* f, double x, double y, double scale, fl
 		if(letter < 0 || letter >= 94) continue;
 		glDrawElements(GL_TRIANGLES, f->letterLen[letter], GL_UNSIGNED_SHORT, (void*) (sizeof(short)*f->letterStart[letter]));
 	}
-}
-void glhLookAtf2( float *matrix, float *eyePosition3D, float *center3D, float *upVector3D ){
-	float forward[3], side[3], up[3];
-	float matrix2[16], resultMatrix[16];
-	// --------------------
-	forward[0] = center3D[0] - eyePosition3D[0];
-	forward[1] = center3D[1] - eyePosition3D[1];
-	forward[2] = center3D[2] - eyePosition3D[2];
-	norm3f(forward);
-	// --------------------
-	// Side = forward x up
-	cross(side, forward, upVector3D);
-	norm3f(side);
-	// Recompute up as: up = side x forward
-	cross(up, side, forward);
-	// --------------------
-	matrix2[0] = side[0];
-	matrix2[4] = side[1];
-	matrix2[8] = side[2];
-	matrix2[12] = 0.0;
-	// --------------------
-	matrix2[1] = up[0];
-	matrix2[5] = up[1];
-	matrix2[9] = up[2];
-	matrix2[13] = 0.0;
-	// --------------------
-	matrix2[2] = -forward[0];
-	matrix2[6] = -forward[1];
-	matrix2[10] = -forward[2];
-	matrix2[14] = 0.0;
-	// --------------------
-	matrix2[3] = matrix2[7] = matrix2[11] = 0.0;
-	matrix2[15] = 1.0;
-	// --------------------
-	mat4x4Multf(resultMatrix, matrix, matrix2);
-	mat4x4Transf(resultMatrix, -eyePosition3D[0], -eyePosition3D[1], -eyePosition3D[2]);
-	// --------------------
-	memcpy(matrix, resultMatrix, 16*sizeof(float));
-}
-
-void setCameraLoc(int* l, float* r){
-	cloc[0] = l[0];
-	cloc[1] = l[1];
-	cloc[2] = l[2];
-	float eye[3] = {0, 0, 0};
-	float up[3] = {0, 0, 1};
-	float front[3] = {1, 0, 0};
-	rotateVec(up, r, up);
-	rotateVec(front, r, front);
-	mat4x4idenf(cam_mat);
-	glhLookAtf2(cam_mat, eye, front, up);
 }
 
 void shutdownGraphics(){

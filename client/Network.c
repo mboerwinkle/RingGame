@@ -103,11 +103,13 @@ void sendMessage(void* msg, int len, int nodelay){
 }
 
 void shutdownNetwork(){
-	int joinRet = pthread_join(netthread, NULL);
-	if(joinRet){
-		printf("Network thread join error: %d\n", joinRet);
-	}else{
-		printf("Network thread joined\n");
+	if(connected){
+		int joinRet = pthread_join(netthread, NULL);
+		if(joinRet){
+			printf("Network thread join error: %d\n", joinRet);
+		}else{
+			printf("Network thread joined\n");
+		}
 	}
 	close(sockfd);
 }

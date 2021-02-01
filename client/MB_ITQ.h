@@ -16,7 +16,7 @@ typedef struct mb_itq{
 	int init;
 }mb_itq;*/
 
-#define MB_ITQ_BUFLEN 10
+#define MB_ITQ_BUFLEN 100
 typedef struct mb_itq{
 	void* buf[MB_ITQ_BUFLEN];
 	int enqueue;

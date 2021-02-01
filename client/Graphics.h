@@ -3,7 +3,7 @@
 #include <GLFW/glfw3.h>
 #include <pthread.h>
 #include <semaphore.h>
-
+#include "MB_ITQ.h"
 
 struct font{
 	float invaspect;
@@ -16,6 +16,7 @@ struct font{
 
 extern char* frame;
 extern sem_t frameAccess;
+extern mb_itq graphicsitq;
 
 
 extern GLFWwindow* window;
