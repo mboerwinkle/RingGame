@@ -47,6 +47,15 @@ void mat4x4Multf(float* res, float* m1, float* m2){
 		}
 	}
 }
+void mat4x4By4x1Multf(float* res, float* m1, float* m2){
+	for(int y = 0; y < 4; y++){
+		float v = 0;
+		for(int i = 0; i < 4; i++){
+			v += m1[y+4*i]*m2[i];
+		}
+		res[y] = v;
+	}
+}
 void mat4x4fromQuat(float* M, float *rot){
 	M[0] = 1-2*rot[2]*rot[2]-2*rot[3]*rot[3];
 	M[1] = 2*rot[1]*rot[2]+2*rot[0]*rot[3];

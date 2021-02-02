@@ -22,6 +22,7 @@ mb_itq graphicsitq;
 
 char* frame;//This is the network data for what to draw.
 sem_t frameAccess;
+float textcolor[3] = {0.827,0.827,0.827};
 
 struct shaderProg{
 	GLuint frag_shader;
@@ -236,7 +237,6 @@ void drawConsole(){
 	glUniform2f(hudShader.u_offset, (float)gamestate.console.cursorPos/80.0, 0.5-1.0/56.0);
 	glUniform3f(hudShader.u_color, 0.259,0.749,1.000);
 	glDrawArrays(GL_TRIANGLES, 0, 6);//background
-	float textcolor[3] = {0.827,0.827,0.827};
 	drawHudText(gamestate.console.comm, &myfont, 0.0, 0.5-1.0/56.0, 0.0125*0.8, textcolor);//draw current command
 	for(int idx = 0; idx < CONS_ROW; idx++){
 		drawHudText(&(gamestate.console.history[(CONS_COL+1)*idx]), &myfont, 0.0, 0.5-((idx+2)/56.0), 0.0125*0.8, textcolor);
@@ -302,6 +302,18 @@ void initGraphics(){
 void startGraphicsLoop(){
 	pthread_create(&graphicsthread, NULL, &graphicsLoop, NULL);
 }
+//Transforms world space coordinates l[3] to screen space coordinates r[2]
+//Should this be done with feedback shaders?
+void getScreenFromWorld(int* l, float* r){
+	float relLoc[4] = {l[0]-cloc[0], l[1]-cloc[1], l[2]-cloc[2], 1.0};
+	float camSpaceLoc[4];
+	float lensSpaceLoc[4];
+	mat4x4By4x1Multf(camSpaceLoc, cam_mat, relLoc);
+	mat4x4By4x1Multf(lensSpaceLoc, cam_lens, camSpaceLoc);
+	r[0] = lensSpaceLoc[0]/lensSpaceLoc[3];
+	r[1] = lensSpaceLoc[1]/lensSpaceLoc[3];
+	r[2] = lensSpaceLoc[2];
+}
 void drawModel(int idx, float* color, int* loc, float* rot, char* name){
 	glEnable(GL_DEPTH_TEST);
 	glUseProgram(solidShader.program);
@@ -319,7 +331,6 @@ void drawModel(int idx, float* color, int* loc, float* rot, char* name){
 	cerr("After AttribPtr");
 	glBindBuffer(GL_ARRAY_BUFFER, m->norm_buffer);
 	glVertexAttribPointer(solidShader.a_norm, 3, GL_FLOAT, GL_FALSE, sizeof(struct bPoint), (void*) 0);
-	glUniform1f(solidShader.u_scale, 1);
 	glUniformMatrix4fv(solidShader.u_lens, 1, GL_FALSE, cam_lens);
 	glUniformMatrix4fv(solidShader.u_cam, 1, GL_FALSE, cam_mat);
 	glUniformMatrix4fv(solidShader.u_camTrs, 1, GL_FALSE, cam_trs);
@@ -327,31 +338,9 @@ void drawModel(int idx, float* color, int* loc, float* rot, char* name){
 	glUniform3f(solidShader.u_color, color[0], color[1], color[2]);
 	glDrawArrays(GL_TRIANGLES, 0, m->facetCount*3);
 	if(name && name[0] != 0){//model has a name
-		float offsetMat[16];
-		float letterRotateMat[16];
-		float letterRotateQuat[4] = {-0.5, 0.5, 0.5, -0.5};
-		mat4x4fromQuat(letterRotateMat, letterRotateQuat);
-		float intermediate[16];
-		mat4x4idenf(offsetMat);
-		mat4x4Transf(offsetMat, 0, 0, -m->diameter*0.6);
-		float finalMat[16];
-		float scale = 150;
-		glUniform1f(solidShader.u_scale, scale);
-		glBindBuffer(GL_ARRAY_BUFFER, myfont.vertex_buffer);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, myfont.ref_buffer);
-		glVertexAttribPointer(hudShader.a_loc, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), (void*) 0);
-		for(int idx = 0; idx < strlen(name); idx++){
-			mat4x4Multf(intermediate, mod_rot, offsetMat);
-			mat4x4Multf(finalMat, intermediate, letterRotateMat);
-			
-			glUniformMatrix4fv(solidShader.u_modRot, 1, GL_FALSE, finalMat);
-			int letter = name[idx];
-			letter -= 33;
-			if(letter < 0 || letter >= 94) continue;
-			glDrawElements(GL_TRIANGLES, myfont.letterLen[letter], GL_UNSIGNED_SHORT, (void*) (sizeof(short)*myfont.letterStart[letter]));
-			mat4x4Transf(offsetMat, 0, (1.0+myfont.spacing)*scale, 0);
-		}
-
+		float r[3];
+		getScreenFromWorld(loc, r);
+		if(r[2] > 0) drawHudText(name, &myfont, 0.5*r[0]+0.5, -0.5*r[1]+0.5, 0.01, textcolor);
 	}
 }
 void drawHudText(char* str, struct font* f, double x, double y, double scale, float* color){
