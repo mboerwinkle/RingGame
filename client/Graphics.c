@@ -217,7 +217,7 @@ void drawFrame(){
 	for(int tIdx = 0; tIdx < teamCount; tIdx++){
 		char scoreMsg[80];
 		sprintf(scoreMsg, "Team %d: %d", tIdx, teamScores[tIdx]);
-		drawHudText(scoreMsg, &myfont, 0, myfont.invaspect*1.5*tIdx*0.02, 0.02, &(teamcolors[3*tIdx]));
+		drawHudText(scoreMsg, &myfont, 0, myfont.invaspect*1.5*tIdx*0.02, 0.02, &(teamcolors[3*tIdx]), strlen(scoreMsg));
 	}
 }
 void drawConsole(){
@@ -232,14 +232,28 @@ void drawConsole(){
 	glUniform2f(hudShader.u_offset, 0,0);
 	glUniform3f(hudShader.u_color, 0.318,0.322,0.463);
 	glDrawArrays(GL_TRIANGLES, 0, 6);//background
+	int cursoroffset = 0;
+	if(gamestate.console.cursorPos > CONS_COL-1) cursoroffset = gamestate.console.cursorPos-(CONS_COL-1);
 	glUniform1f(hudShader.u_scale, 0.01);
 	glUniform1f(hudShader.u_aspect, 1.5);
-	glUniform2f(hudShader.u_offset, (float)gamestate.console.cursorPos/80.0, 0.5-1.0/56.0);
+	glUniform2f(hudShader.u_offset, (float)(gamestate.console.cursorPos-cursoroffset)/80.0, 0.5-1.0/56.0);
 	glUniform3f(hudShader.u_color, 0.259,0.749,1.000);
-	glDrawArrays(GL_TRIANGLES, 0, 6);//background
-	drawHudText(gamestate.console.comm, &myfont, 0.0, 0.5-1.0/56.0, 0.0125*0.8, textcolor);//draw current command
-	for(int idx = 0; idx < CONS_ROW; idx++){
-		drawHudText(&(gamestate.console.history[(CONS_COL+1)*idx]), &myfont, 0.0, 0.5-((idx+2)/56.0), 0.0125*0.8, textcolor);
+	glDrawArrays(GL_TRIANGLES, 0, 6);//cursor
+	drawHudText(gamestate.console.comm+cursoroffset, &myfont, 0.0, 0.5-1.0/56.0, 0.0125*0.8, textcolor, COMMAND_SIZE);//draw current command
+
+	int hline = 0;
+	for(struct historyLine* h = gamestate.console.historyView; h != NULL && hline < CONS_ROW; h = h->prev){
+		int len = h->length;
+		int sublines = 0;
+		while(len > CONS_COL){
+			sublines++;
+			len -= CONS_COL;
+		}
+		while(sublines >= 0){
+			drawHudText(h->text+sublines*CONS_COL, &myfont, 0.0, 0.5-((hline+2)/56.0), 0.0125*0.8, textcolor, CONS_COL);
+			sublines--;
+			hline++;
+		}
 	}
 }
 void* graphicsLoop(void* none){
@@ -340,10 +354,10 @@ void drawModel(int idx, float* color, int* loc, float* rot, char* name){
 	if(name && name[0] != 0){//model has a name
 		float r[3];
 		getScreenFromWorld(loc, r);
-		if(r[2] > 0) drawHudText(name, &myfont, 0.5*r[0]+0.5, -0.5*r[1]+0.5, 0.01, textcolor);
+		if(r[2] > 0) drawHudText(name, &myfont, 0.5*r[0]+0.5, -0.5*r[1]+0.5, 0.01, textcolor, strlen(name));
 	}
 }
-void drawHudText(char* str, struct font* f, double x, double y, double scale, float* color){
+void drawHudText(char* str, struct font* f, double x, double y, double scale, float* color, int len){
 	glDisable(GL_DEPTH_TEST);
 	glUseProgram(hudShader.program);
 	cerr("After use program (hud)");
@@ -356,9 +370,10 @@ void drawHudText(char* str, struct font* f, double x, double y, double scale, fl
 	glUniform3f(hudShader.u_color, color[0], color[1], color[2]);
 
 	glVertexAttribPointer(hudShader.a_loc, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), (void*) 0);
-	for(int idx = 0; idx < strlen(str); idx++){
+	for(int idx = 0; idx < len; idx++){
 		glUniform2f(hudShader.u_offset, x+(1.0+f->spacing)*scale*idx, y);
 		int letter = str[idx];
+		if(!letter) return;
 		letter -= 33;
 		if(letter < 0 || letter >= 94) continue;
 		glDrawElements(GL_TRIANGLES, f->letterLen[letter], GL_UNSIGNED_SHORT, (void*) (sizeof(short)*f->letterStart[letter]));

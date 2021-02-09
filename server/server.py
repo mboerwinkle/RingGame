@@ -196,7 +196,7 @@ def handleClientInput(i):
 		if len(tok) > 1 and tok[1][0] == '/':
 			cli.runcommand(tok[1:])
 		else:
-			Client.chat(cli.name+": "+i.msg[4:80])#truncate 'COMM', and limit to 80 chars
+			Client.chat(cli.name+": "+i.msg[5:200])#skip 'COMM ' prefix
 	elif tok[0] == 'RDEF':
 		uid = int(tok[1], 16);
 		if uid in obj.objects.keys():

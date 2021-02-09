@@ -29,12 +29,11 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 			}
 			return;
 		}else if(gamestate.screen == CONS){
-			if(key >= ' ' && key <= '~' && gamestate.console.commLen < CONS_COL){//improper shift support
-				memmove(&(gamestate.console.comm[gamestate.console.cursorPos+1]), &(gamestate.console.comm[gamestate.console.cursorPos]), (CONS_COL)-(gamestate.console.cursorPos));
+			if(key >= ' ' && key <= '~' && gamestate.console.commLen < COMMAND_SIZE){//improper shift support
+				memmove(&(gamestate.console.comm[gamestate.console.cursorPos+1]), &(gamestate.console.comm[gamestate.console.cursorPos]), (COMMAND_SIZE)-(gamestate.console.cursorPos));
 				gamestate.console.comm[gamestate.console.cursorPos] = key;
 				gamestate.console.commLen++;
 				gamestate.console.cursorPos++;
-				gamestate.console.comm[gamestate.console.commLen] = 0;//null term
 			}else if(key == GLFW_KEY_LEFT){
 				gamestate.console.cursorPos--;
 				if(gamestate.console.cursorPos < 0){
@@ -48,18 +47,18 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 			}else if(key == GLFW_KEY_BACKSPACE && gamestate.console.cursorPos != 0){
 				gamestate.console.cursorPos--;
 				gamestate.console.commLen--;
-				memmove(&(gamestate.console.comm[gamestate.console.cursorPos]), &(gamestate.console.comm[gamestate.console.cursorPos+1]), (CONS_COL)-(gamestate.console.cursorPos));
+				memmove(&(gamestate.console.comm[gamestate.console.cursorPos]), &(gamestate.console.comm[gamestate.console.cursorPos+1]), (COMMAND_SIZE)-(gamestate.console.cursorPos));
 			}else if(key == GLFW_KEY_ENTER && gamestate.console.commLen != 0){
 				printf("%s\n", gamestate.console.comm);
-				char netmsg[100];
+				char netmsg[10+gamestate.console.commLen];
 				sprintf(netmsg, "COMM %s#", gamestate.console.comm);
-				prependHistory(gamestate.console.comm);
+				appendHistory(gamestate.console.comm);
 				sendMessage(netmsg, strlen(netmsg), 0);
 				gamestate.console.comm[0] = 0;
 				gamestate.console.commLen = 0;
 				gamestate.console.cursorPos = 0;
 			}
-			assert(gamestate.console.comm[gamestate.console.commLen] == 0);
+			gamestate.console.comm[gamestate.console.commLen] = 0;
 			return;
 		}
 	}

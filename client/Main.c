@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <string.h>
+#include <assert.h>
 #include <GLFW/glfw3.h>
 
 #include "Input.h"
@@ -12,7 +13,7 @@
 #include "Graphics.h"
 #include "Gamestate.h"
 
-struct gamestate_ gamestate = {.running = 1, .myShipId = -1, .screen = NONE, .console={.comm = {0}, .commLen = 0, .cursorPos = 0, .history = {0}}};
+struct gamestate_ gamestate = {.running = 1, .myShipId = -1, .screen = NONE, .console={.comm = {0}, .commLen = 0, .cursorPos = 0, .historyStart = NULL, .historyEnd = NULL, .historyView = NULL, .historyUsage = 0}};
 void processGraphicsRequests(){
 	int* uid = mb_itqDequeueNoBlock(&graphicsitq);
 	while(uid){
@@ -31,8 +32,8 @@ void processNetData(char* buf){
 		sem_post(&frameAccess);
 		free(oldbuf);
 	}else if(!strncmp("CONS", buf, 4)){
-		//printf("%s\n", buf);
-		prependHistory(buf+4);
+		appendHistory(buf+4);
+		free(buf);
 	}else if(!strncmp("ODEF", buf, 4)){
 		char* originalbuf = buf;
 		buf+=4;
@@ -61,10 +62,12 @@ void processNetData(char* buf){
 		free(originalbuf);
 	}else if(!strncmp("ASGN", buf, 4)){
 		gamestate.myShipId = *(int*)(buf+4);
+		free(buf);
 	}else{
 		if(strlen(buf) < 4){
 			printf("Unknown short message\n");
 		}else printf("Unknown message type %.4s\n", buf);
+		free(buf);
 	}
 }
 
@@ -114,8 +117,46 @@ int main(int argc, char** argv){
 	shutdownNetwork();
 	printf("Bye!\n");
 }
-void prependHistory(char* msg){
-	memmove(&(gamestate.console.history[CONS_COL+1]), &(gamestate.console.history[0]), (CONS_COL+1)*(CONS_ROW-1));
-	strncpy(gamestate.console.history, msg, CONS_COL);
-	gamestate.console.history[CONS_COL] = 0;
+void appendHistory(char* msg){
+	struct console_* c = &(gamestate.console);
+	while(1){
+		struct historyLine* h = malloc(sizeof(struct historyLine));
+		int len = 0;
+		while(msg[len] != '\n' && msg[len] != 0){
+			len++;
+		}
+		h->length = len;
+		h->text = malloc(len+1);
+		memcpy(h->text, msg, len);
+		h->text[len] = 0;
+		h->next = NULL;
+		h->prev = c->historyStart;
+		if(h->prev){
+			h->prev->next = h;
+		}
+		c->historyStart = h;
+		if(c->historyView == h->prev){
+			c->historyView = h;
+		}
+		if(c->historyEnd == NULL){
+			c->historyEnd = h;
+		}
+
+		c->historyUsage += len;
+		if(msg[len] == '\n'){
+			msg += len+1;
+		}else{
+			break;
+		}
+	}
+	while(c->historyUsage > HISTORY_SIZE){
+		struct historyLine* del = c->historyEnd;
+		c->historyEnd = c->historyEnd->next;
+		if(c->historyEnd) c->historyEnd->prev = NULL;
+		c->historyUsage -= del->length;
+		if(c->historyView == del) c->historyView = c->historyEnd;
+		if(c->historyStart == del) c->historyStart = NULL;
+		free(del->text);
+		free(del);
+	}
 }

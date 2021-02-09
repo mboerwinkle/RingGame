@@ -27,5 +27,5 @@ extern void shutdownGraphics();
 extern void draw();
 extern void drawStars();
 extern void drawModel(int idx, float* color, int* loc, float* rot, char* name);
-extern void drawHudText(char* str, struct font* f, double x, double y, double scale, float* color);
+extern void drawHudText(char* str, struct font* f, double x, double y, double scale, float* color, int length);
 #endif

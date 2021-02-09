@@ -1,22 +1,36 @@
 #ifndef GAMESTATE_H
 #define GAMESTATE_H
+#define CONS_ROW 25
 #define CONS_COL 80
-#define CONS_ROW 27
+#define HISTORY_SIZE 4000
+#define COMMAND_SIZE 200
+#if (CONS_COL*CONS_ROW) > HISTORY_SIZE
+ #warning Possibly insufficient HISTORY_SIZE
+#endif
+struct historyLine{
+	char* text;
+	struct historyLine* next;
+	struct historyLine* prev;
+	short length;
+};
 struct gamestate_{
 	int running;
 	int myShipId;
 	enum{
 		NONE, CONS
 	} screen;
-	struct{
-		char comm[CONS_COL+1];
+	struct console_{
+		int historyUsage;
+		struct historyLine* historyStart;
+		struct historyLine* historyEnd;
+		struct historyLine* historyView;
+		char comm[COMMAND_SIZE+1];
 		int commLen;
 		int cursorPos;
-		char history[(CONS_COL+1)*CONS_ROW];
 	} console;
-} ;
+};
 extern struct gamestate_ gamestate;//in Main.c
-extern void prependHistory(char* msg);
+extern void appendHistory(char* msg);
 
 typedef struct objDef{//An AVL tree (because I hate implementing RB trees...)
 	struct objDef* (child[2]);
