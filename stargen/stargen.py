@@ -9,6 +9,4 @@ for sIdx in range(starCount):
 	for dim in range(len(star)):
 		star[dim] = random.randint(bounds[0], bounds[1])
 	stars.append(star)
-fp = open("stars.json", "w")
-fp.write(json.dumps(stars, separators=(',',':')))
-fp.close()
+print(json.dumps(stars, separators=(',',':')))
