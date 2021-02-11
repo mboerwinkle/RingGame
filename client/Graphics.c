@@ -220,30 +220,34 @@ void drawFrame(){
 		drawHudText(scoreMsg, &myfont, 0, myfont.invaspect*1.5*tIdx*0.02, 0.02, &(teamcolors[3*tIdx]), strlen(scoreMsg));
 	}
 }
-void drawConsole(){
-	glDisable(GL_DEPTH_TEST);
-	glUseProgram(hudShader.program);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	float consoleback[12] = {0,0,0,1,1,0,1,0,0,1,1,1};
-	glVertexAttribPointer(hudShader.a_loc, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), (void*)(consoleback));
-	glUniformMatrix4fv(hudShader.u_lens, 1, GL_FALSE, cam_lens_ortho);
-	glUniform1f(hudShader.u_scale, 1.0);
-	glUniform1f(hudShader.u_aspect, 0.5);
-	glUniform2f(hudShader.u_offset, 0,0);
-	glUniform3f(hudShader.u_color, 0.318,0.322,0.463);
-	glDrawArrays(GL_TRIANGLES, 0, 6);//background
-	int cursoroffset = 0;
-	if(gamestate.console.cursorPos > CONS_COL-1) cursoroffset = gamestate.console.cursorPos-(CONS_COL-1);
-	glUniform1f(hudShader.u_scale, 0.01);
-	glUniform1f(hudShader.u_aspect, 1.5);
-	glUniform2f(hudShader.u_offset, (float)(gamestate.console.cursorPos-cursoroffset)/80.0, 0.5-1.0/56.0);
-	glUniform3f(hudShader.u_color, 0.259,0.749,1.000);
-	glDrawArrays(GL_TRIANGLES, 0, 6);//cursor
-	drawHudText(gamestate.console.comm+cursoroffset, &myfont, 0.0, 0.5-1.0/56.0, 0.0125*0.8, textcolor, COMMAND_SIZE);//draw current command
+void drawConsole(int mode){
+	if(mode == 1){
+		glDisable(GL_DEPTH_TEST);
+		glUseProgram(hudShader.program);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		float consoleback[12] = {0,0,0,1,1,0,1,0,0,1,1,1};
+		glVertexAttribPointer(hudShader.a_loc, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), (void*)(consoleback));
+		glUniformMatrix4fv(hudShader.u_lens, 1, GL_FALSE, cam_lens_ortho);
+		glUniform1f(hudShader.u_scale, 1.0);
+		glUniform1f(hudShader.u_aspect, 0.5);
+		glUniform2f(hudShader.u_offset, 0,0);
+		glUniform3f(hudShader.u_color, 0.318,0.322,0.463);
+		glDrawArrays(GL_TRIANGLES, 0, 6);//background
+		int cursoroffset = 0;
+		if(gamestate.console.cursorPos > CONS_COL-1) cursoroffset = gamestate.console.cursorPos-(CONS_COL-1);
+		glUniform1f(hudShader.u_scale, 0.01);
+		glUniform1f(hudShader.u_aspect, 1.5);
+		glUniform2f(hudShader.u_offset, (float)(gamestate.console.cursorPos-cursoroffset)/80.0, 0.5-1.0/56.0);
+		glUniform3f(hudShader.u_color, 0.259,0.749,1.000);
+		glDrawArrays(GL_TRIANGLES, 0, 6);//cursor
+		drawHudText(gamestate.console.comm+cursoroffset, &myfont, 0.0, 0.5-1.0/56.0, 0.0125*0.8, textcolor, COMMAND_SIZE);//draw current command
+	}
 
 	int hline = 0;
+	time_t t = time(NULL)-CHAT_PROM_TIME;
 	for(struct historyLine* h = gamestate.console.historyView; h != NULL && hline < CONS_ROW; h = h->prev){
 		int len = h->length;
+		if(!mode && h->t <= t) break;
 		int sublines = 0;
 		while(len > CONS_COL){
 			sublines++;
@@ -263,13 +267,15 @@ void* graphicsLoop(void* none){
 		glfwGetFramebufferSize(window, &width, &height);
 		glViewport(0, 0, width, height);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		delay(60);
+		//delay(60);
 		sem_wait(&frameAccess);
 		if(frame){
 			drawFrame();
 		}
 		if(gamestate.screen == CONS){
-			drawConsole();
+			drawConsole(1);
+		}else{
+			drawConsole(0);
 		}
 		sem_post(&frameAccess);
 		glfwSwapBuffers(window);
@@ -296,6 +302,8 @@ void initGraphics(){
 	}
 	/* Make the window's context current */
 	glfwMakeContextCurrent(window);
+	/* Enable vsync */
+	glfwSwapInterval(1);
 	printf("GL Version: %s\n", glGetString(GL_VERSION));
 	glfwGetFramebufferSize(window, &XRES, &YRES);
 	printf("FBSize %d %d\n", XRES, YRES);

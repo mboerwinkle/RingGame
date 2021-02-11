@@ -1,9 +1,12 @@
 #ifndef GAMESTATE_H
 #define GAMESTATE_H
+#include <time.h>
 #define CONS_ROW 25
 #define CONS_COL 80
 #define HISTORY_SIZE 4000
 #define COMMAND_SIZE 200
+//chat or console messages have CHAT_PROM_TIME seconds of promiscuity
+#define CHAT_PROM_TIME 5
 #if (CONS_COL*CONS_ROW) > HISTORY_SIZE
  #warning Possibly insufficient HISTORY_SIZE
 #endif
@@ -11,6 +14,7 @@ struct historyLine{
 	char* text;
 	struct historyLine* next;
 	struct historyLine* prev;
+	time_t t;
 	short length;
 };
 struct gamestate_{

@@ -16,20 +16,16 @@ char controlChanged;
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
 	if (action == GLFW_PRESS){
-		if(key == GLFW_KEY_ESCAPE){
-			glfwSetWindowShouldClose(window, GLFW_TRUE);
-			return;
-		}else if(key == GLFW_KEY_GRAVE_ACCENT){
-			if(gamestate.screen == NONE){
-				//puts("console");
+		if(gamestate.screen == NONE){
+			if(key == GLFW_KEY_ESCAPE){
+				glfwSetWindowShouldClose(window, GLFW_TRUE);
+			}else if(key == GLFW_KEY_GRAVE_ACCENT || key == GLFW_KEY_ENTER){
 				gamestate.screen = CONS;
-			}else if(gamestate.screen == CONS){
-				//puts("none");
-				gamestate.screen = NONE;
 			}
-			return;
 		}else if(gamestate.screen == CONS){
-			if(key >= ' ' && key <= '~' && gamestate.console.commLen < COMMAND_SIZE){//improper shift support
+			if(key == GLFW_KEY_GRAVE_ACCENT || key == GLFW_KEY_ESCAPE){
+				gamestate.screen = NONE;
+			}else if(key >= ' ' && key <= '~' && gamestate.console.commLen < COMMAND_SIZE){//improper shift support
 				memmove(&(gamestate.console.comm[gamestate.console.cursorPos+1]), &(gamestate.console.comm[gamestate.console.cursorPos]), (COMMAND_SIZE)-(gamestate.console.cursorPos));
 				gamestate.console.comm[gamestate.console.cursorPos] = key;
 				gamestate.console.commLen++;

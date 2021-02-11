@@ -130,6 +130,7 @@ void appendHistory(char* msg){
 		memcpy(h->text, msg, len);
 		h->text[len] = 0;
 		h->next = NULL;
+		h->t = time(NULL);
 		h->prev = c->historyStart;
 		if(h->prev){
 			h->prev->next = h;
