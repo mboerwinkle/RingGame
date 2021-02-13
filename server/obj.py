@@ -14,7 +14,7 @@ def getUid():
 		nextObjUid = (nextObjUid+1)%m
 	return nextObjUid
 class Obj:
-	def __init__(self, mId, collisionClass, color=(0.8, 0.8, 0.8), solid=True, name = ""):
+	def __init__(self, mId, collisionClass, color=(0.8, 0.8, 0.8, 1.0), solid=True, name = ""):
 		global objects
 		self.solid = solid
 		self.collisionClass = collisionClass
@@ -38,7 +38,7 @@ class Obj:
 	def netPack(self):
 		return struct.pack('<ib', self.uid, self.revision) + self.pos.netPack()
 	def netDef(self):
-		return struct.pack('<ibibfff', self.uid, self.revision, self.mid, self.predMode, self.color[0], self.color[1], self.color[2])+(self.name+'\0').encode("UTF-8", errors="replace")
+		return struct.pack('<ibibffff', self.uid, self.revision, self.mid, self.predMode, self.color[0], self.color[1], self.color[2], self.color[3])+(self.name+'\0').encode("UTF-8", errors="replace")
 	def remove(self):
 		global objects
 		objects.pop(self.uid)

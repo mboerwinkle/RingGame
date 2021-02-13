@@ -53,9 +53,8 @@ void processNetData(char* buf){
 		buf+=4;
 		t->predictionMode = *(char*)buf;
 		buf+=1;
-		memcpy(t->color, buf, 12);
-		t->color[3] = 1.0;
-		buf+=12;
+		memcpy(t->color, buf, 16);
+		buf+=16;
 		t->name = calloc(strlen(buf)+1, 1);
 		strcpy(t->name, buf);
 		t->pending = DONE;

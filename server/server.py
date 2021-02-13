@@ -76,8 +76,8 @@ def setupNewRound():
 	CommandPoint.removeAll()
 	obj.removeAll()
 	Team.clear()
-	Team("CYAN", (0.0, 1.0, 0.941))
-	Team("MGTA", (1.0, 0.0, 0.941))
+	Team("CYAN", (0.0, 1.0, 0.941, 1.0))
+	Team("MGTA", (1.0, 0.0, 0.941, 1.0))
 
 	for c in random.sample(list(Client.clients), len(Client.clients)):
 		c.team = Team.select()
@@ -283,12 +283,12 @@ class Missile:
 class CommandPoint:
 	commandobjects = dict()
 	def __init__(self, objMid = 2, totemMid = 1, team=None):
-		totemColor = (0.9, 0.9, 0.9)
+		totemColor = (0.9, 0.9, 0.9, 1.0)
 		self.team = team
 		if team != None:
 			totemColor = team.color
 		#The obj is the capture box. The totem is an optional auxillary solid marker
-		self.obj = obj.Obj(objMid, 0, color=(0.5, 0.75, 1.0), solid=False)
+		self.obj = obj.Obj(objMid, 0, color=(0.5, 0.75, 1.0, 0.5), solid=False)
 		self.totem = obj.Obj(totemMid, 0, color=totemColor, solid=True)
 		self.obj.pos.randomize(20000)
 		self.totem.pos = self.obj.pos

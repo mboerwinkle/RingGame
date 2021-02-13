@@ -3,10 +3,10 @@ uniform float u_aspect;
 uniform vec2 u_offset;
 uniform float u_scale;
 uniform mat4 u_lens;//This is the gl_perspective matrix equivalent
-uniform vec3 u_baseColor;
+uniform vec4 u_baseColor;
 
 attribute vec2 a_loc;
-varying vec3 color;
+varying vec4 color;
 void main()
 {
 	color = u_baseColor;

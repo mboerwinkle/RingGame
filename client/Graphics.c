@@ -149,7 +149,7 @@ struct shaderProg createShader(char* vertPath, char* fragPath){
 	return ret;
 }
 
-float teamcolors[6] = {0.0, 1.0, 0.941, 1.0, 0.0, 0.941};
+float teamcolors[8] = {0.0, 1.0, 0.941, 1.0, 1.0, 0.0, 0.941, 1.0};
 void drawFrame(){
 	char* buf = frame;
 	buf += 4;
@@ -217,7 +217,7 @@ void drawFrame(){
 	for(int tIdx = 0; tIdx < teamCount; tIdx++){
 		char scoreMsg[80];
 		sprintf(scoreMsg, "Team %d: %d", tIdx, teamScores[tIdx]);
-		drawHudText(scoreMsg, &myfont, 0, myfont.invaspect*1.5*tIdx*0.02, 0.02, &(teamcolors[3*tIdx]), strlen(scoreMsg));
+		drawHudText(scoreMsg, &myfont, 0, myfont.invaspect*1.5*tIdx*0.02, 0.02, &(teamcolors[4*tIdx]), strlen(scoreMsg));
 	}
 }
 void drawConsole(int mode){
@@ -231,14 +231,14 @@ void drawConsole(int mode){
 		glUniform1f(hudShader.u_scale, 1.0);
 		glUniform1f(hudShader.u_aspect, 0.5);
 		glUniform2f(hudShader.u_offset, 0,0);
-		glUniform3f(hudShader.u_color, 0.318,0.322,0.463);
+		glUniform4f(hudShader.u_color, 0.318,0.322,0.463,0.5);
 		glDrawArrays(GL_TRIANGLES, 0, 6);//background
 		int cursoroffset = 0;
 		if(gamestate.console.cursorPos > CONS_COL-1) cursoroffset = gamestate.console.cursorPos-(CONS_COL-1);
 		glUniform1f(hudShader.u_scale, 0.01);
 		glUniform1f(hudShader.u_aspect, 1.5);
 		glUniform2f(hudShader.u_offset, (float)(gamestate.console.cursorPos-cursoroffset)/80.0, 0.5-1.0/56.0);
-		glUniform3f(hudShader.u_color, 0.259,0.749,1.000);
+		glUniform4f(hudShader.u_color, 0.259,0.749,1.000,1.0);
 		glDrawArrays(GL_TRIANGLES, 0, 6);//cursor
 		drawHudText(gamestate.console.comm+cursoroffset, &myfont, 0.0, 0.5-1.0/56.0, 0.0125*0.8, textcolor, COMMAND_SIZE);//draw current command
 	}
@@ -312,7 +312,7 @@ void initGraphics(){
 	glOrthoEquiv(cam_lens_ortho, 0, 1, 1, 0, -1, 1);
 	//glDepthFunc(GL_LESS);
 	//glClearDepth(1.0);
-	//glEnable(GL_CULL_FACE);
+	glEnable(GL_CULL_FACE);
 	//glEnable(GL_BLEND);
 	//glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	solidShader = createShader("gl/solid.vert", "gl/color.frag");
@@ -357,7 +357,7 @@ void drawModel(int idx, float* color, int* loc, float* rot, char* name){
 	glUniformMatrix4fv(solidShader.u_cam, 1, GL_FALSE, cam_mat);
 	glUniformMatrix4fv(solidShader.u_camTrs, 1, GL_FALSE, cam_trs);
 	glUniformMatrix4fv(solidShader.u_modRot, 1, GL_FALSE, mod_rot);
-	glUniform3f(solidShader.u_color, color[0], color[1], color[2]);
+	glUniform4f(solidShader.u_color, color[0], color[1], color[2], color[3]);
 	glDrawArrays(GL_TRIANGLES, 0, m->facetCount*3);
 	if(name && name[0] != 0){//model has a name
 		float r[3];
@@ -375,7 +375,7 @@ void drawHudText(char* str, struct font* f, double x, double y, double scale, fl
 	glUniformMatrix4fv(hudShader.u_lens, 1, GL_FALSE, cam_lens_ortho);
 	glUniform1f(hudShader.u_scale, (float)scale);
 	glUniform1f(hudShader.u_aspect, (float)f->invaspect);
-	glUniform3f(hudShader.u_color, color[0], color[1], color[2]);
+	glUniform4f(hudShader.u_color, color[0], color[1], color[2], color[3]);
 
 	glVertexAttribPointer(hudShader.a_loc, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), (void*) 0);
 	for(int idx = 0; idx < len; idx++){
