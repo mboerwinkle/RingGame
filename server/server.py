@@ -74,6 +74,7 @@ def readManifest():
 def setupNewRound():
 	Client.dieAll()
 	CommandPoint.removeAll()
+	Missile.removeAll()
 	obj.removeAll()
 	Team.clear()
 	Team("CYAN", (0.0, 1.0, 0.941, 1.0))
@@ -84,18 +85,9 @@ def setupNewRound():
 
 	for idx in range(10):
 		CommandPoint()
-	##place them in a ring for reliable debugging
-	#cpCount = len(CommandPoint.commandobjects)
-	#for cpIdx in range(cpCount):
-	#	angle = 2*math.pi*cpIdx/cpCount
-	#	loc = [int(10000*math.sin(angle)), int(10000*math.cos(angle)), int(0)]
-	#	cp = CommandPoint.commandobjects[list(CommandPoint.commandobjects)[cpIdx]]
-	#	cp.setLocation(loc)
-	##
 	for idx in range(5):
 		asteroid = obj.Obj(random.choice((3, 4, 6)), 2)
 		asteroid.pos.randomize(20000)
-
 
 	#Team("Yellow", (1.0, 0.941, 0))
 
@@ -279,7 +271,9 @@ class Missile:
 		if self.lifetime <= 0:
 			self.die()
 		self.obj.pos.moveForward(self.speed)
-		
+	def removeAll():
+		Missile.missiles = set()
+		Missile.deadMissiles = set()
 class CommandPoint:
 	commandobjects = dict()
 	def __init__(self, objMid = 2, totemMid = 1, team=None):
