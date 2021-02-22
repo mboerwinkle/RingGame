@@ -213,7 +213,10 @@ def startNetworking():
 
 class Team:
 	teams = []
+	netPackCache = None
 	def select():
+		if len(Team.teams) < 1:
+			return None
 		weakestTeam = Team.teams[0]
 		for t in Team.teams:
 			if t.members() < weakestTeam.members():
@@ -223,6 +226,7 @@ class Team:
 		for x in Client.clients:
 			x.team = None
 		Team.teams = []
+		Team.netPackCache = None
 		print("Cleared Teams")
 	def scoreboard():
 		board = dict()
@@ -230,7 +234,11 @@ class Team:
 			board[t.name] = t.points
 		return board
 	def netPack():
-		return struct.pack('<iii', 2, Team.teams[0].points, Team.teams[1].points)
+		if not Team.netPackCache:
+			Team.netPackCache = struct.pack('<i', len(Team.teams))
+			for t in Team.teams:
+				Team.netPackCache += struct.pack('<i', t.points)
+		return Team.netPackCache
 	def __init__(self, name, color):
 		self.name = name
 		self.color = color
@@ -246,6 +254,7 @@ class Team:
 
 	def award(self, pts):
 		self.points += pts
+		Team.netPackCache = None
 
 class Missile:
 	missiles = set()
