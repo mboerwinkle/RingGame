@@ -13,7 +13,9 @@
 #include "Graphics.h"
 #include "Gamestate.h"
 
-struct gamestate_ gamestate = {.running = 1, .myShipId = -1, .screen = NONE, .console={.comm = {0}, .commLen = 0, .cursorPos = 0, .historyStart = NULL, .historyEnd = NULL, .historyView = NULL, .historyUsage = 0}};
+struct gamestate_ gamestate = {.running = 1, .myShipId = -1, .screen = NONE,
+	.console={.comm = {0}, .commLen = 0, .cursorPos = 0, .historyStart = NULL,
+	.historyEnd = NULL, .historyView = NULL, .historyUsage = 0}};
 void processGraphicsRequests(){
 	int* uid = mb_itqDequeueNoBlock(&graphicsitq);
 	while(uid){
@@ -88,6 +90,7 @@ int main(int argc, char** argv){
 	}
 	printf("# Setting Input Callbacks\n");
 	glfwSetKeyCallback(window, &key_callback);
+	glfwSetCharCallback(window, &char_callback);
 	printf("# Entering Game Loop\n");
 	while (!handleInput()){
 		char* msg = mb_itqDequeueTimed(&netitq, 0, 8333333);//process input at 120fps
@@ -117,7 +120,7 @@ int main(int argc, char** argv){
 	printf("Bye!\n");
 }
 void appendHistory(char* msg){
-	struct console_* c = &(gamestate.console);
+	#define C (gamestate.console)
 	while(1){
 		struct historyLine* h = malloc(sizeof(struct historyLine));
 		int len = 0;
@@ -130,33 +133,34 @@ void appendHistory(char* msg){
 		h->text[len] = 0;
 		h->next = NULL;
 		h->t = time(NULL);
-		h->prev = c->historyStart;
+		h->prev = C.historyStart;
 		if(h->prev){
 			h->prev->next = h;
 		}
-		c->historyStart = h;
-		if(c->historyView == h->prev){
-			c->historyView = h;
+		C.historyStart = h;
+		if(C.historyView == h->prev){
+			C.historyView = h;
 		}
-		if(c->historyEnd == NULL){
-			c->historyEnd = h;
+		if(C.historyEnd == NULL){
+			C.historyEnd = h;
 		}
 
-		c->historyUsage += len;
+		C.historyUsage += len;
 		if(msg[len] == '\n'){
 			msg += len+1;
 		}else{
 			break;
 		}
 	}
-	while(c->historyUsage > HISTORY_SIZE){
-		struct historyLine* del = c->historyEnd;
-		c->historyEnd = c->historyEnd->next;
-		if(c->historyEnd) c->historyEnd->prev = NULL;
-		c->historyUsage -= del->length;
-		if(c->historyView == del) c->historyView = c->historyEnd;
-		if(c->historyStart == del) c->historyStart = NULL;
+	while(C.historyUsage > HISTORY_SIZE){
+		struct historyLine* del = C.historyEnd;
+		C.historyEnd = C.historyEnd->next;
+		if(C.historyEnd) C.historyEnd->prev = NULL;
+		C.historyUsage -= del->length;
+		if(C.historyView == del) C.historyView = C.historyEnd;
+		if(C.historyStart == del) C.historyStart = NULL;
 		free(del->text);
 		free(del);
 	}
+	#undef C
 }

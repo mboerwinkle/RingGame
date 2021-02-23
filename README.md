@@ -7,6 +7,10 @@ The server relies on mboerwinkle/hypercubeCollide. `git clone https://github.com
 ### Running
 From inside the server directory, run `python3 server.py`.
 ## Client
+### Dependencies
+- `GLFW`
+- `libepoxy`
+- `libutf8proc`
 ### Building
 From inside the client directory, run `make`.
 ### Running

@@ -7,6 +7,7 @@ struct controlState {//This is the control representation
 
 extern int handleInput();
 extern void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
+extern void char_callback(GLFWwindow* window, unsigned int c);
 extern struct controlState control;
 extern char controlChanged;
 #endif

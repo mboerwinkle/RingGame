@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <GLFW/glfw3.h>
+#include <utf8proc.h>
 
 #include "Input.h"
 #include "Graphics.h"
@@ -9,13 +10,36 @@
 #include "Gamestate.h"
 #include "assert.h"
 
+
+int utf8_isFirstByte(char b){
+	//check for all Byte1 patterns (includes null byte)
+	return (b>>7 == 0 || b>>5 == 0b110 || b>>4 == 0b1110 || b>>3 == 0b11110);
+}
+
 struct controlState control = {.s=0};
 struct controlState lastControl = {.s=0};
 char controlChanged;
 
+void char_callback(GLFWwindow* window, unsigned int c){
+	int cpWidth = utf8proc_charwidth(c);
+	if(gamestate.screen != CONS || c == '`' || c == '~' || cpWidth < 1 || !utf8proc_codepoint_valid(c)) return;
+	//do we have space for the next character? remember console.comm is size[COMMAND_SIZE+1]
+	if(gamestate.console.commLen+cpWidth <= COMMAND_SIZE){
+		memmove(gamestate.console.comm + gamestate.console.cursorPos + cpWidth,
+			gamestate.console.comm + gamestate.console.cursorPos,
+			COMMAND_SIZE - gamestate.console.cursorPos);
+		#ifndef NDEBUG //suppress unused variable warning for assert below
+		int writtenlen =
+		#endif
+			utf8proc_encode_char(c, (utf8proc_uint8_t*) (gamestate.console.comm + gamestate.console.cursorPos));
+		assert(writtenlen == cpWidth);
+		gamestate.console.commLen += cpWidth;
+		gamestate.console.cursorPos += cpWidth;
+	}
+}
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-	if (action == GLFW_PRESS){
+	if (action == GLFW_PRESS || action == GLFW_REPEAT){
 		if(gamestate.screen == NONE){
 			if(key == GLFW_KEY_ESCAPE){
 				glfwSetWindowShouldClose(window, GLFW_TRUE);
@@ -23,42 +47,48 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 				gamestate.screen = CONS;
 			}
 		}else if(gamestate.screen == CONS){
+			#define C (gamestate.console)
 			if(key == GLFW_KEY_GRAVE_ACCENT || key == GLFW_KEY_ESCAPE){
 				gamestate.screen = NONE;
-			}else if(key >= ' ' && key <= '~' && gamestate.console.commLen < COMMAND_SIZE){//improper shift support
-				memmove(&(gamestate.console.comm[gamestate.console.cursorPos+1]), &(gamestate.console.comm[gamestate.console.cursorPos]), (COMMAND_SIZE)-(gamestate.console.cursorPos));
-				gamestate.console.comm[gamestate.console.cursorPos] = key;
-				gamestate.console.commLen++;
-				gamestate.console.cursorPos++;
 			}else if(key == GLFW_KEY_LEFT){
-				gamestate.console.cursorPos--;
-				if(gamestate.console.cursorPos < 0){
-					gamestate.console.cursorPos = 0;
+				if(C.cursorPos != 0){
+					int cpWidth = 1;
+					while(!utf8_isFirstByte(C.comm[C.cursorPos - cpWidth])){
+						cpWidth++;
+					}
+					C.cursorPos -= cpWidth;
 				}
 			}else if(key == GLFW_KEY_RIGHT){
-				gamestate.console.cursorPos++;
-				if(gamestate.console.cursorPos > gamestate.console.commLen){
-					gamestate.console.cursorPos = gamestate.console.commLen;
+				if(C.comm[C.cursorPos] != 0){
+					int cpWidth = 1;
+					while(!utf8_isFirstByte(C.comm[C.cursorPos + cpWidth])){
+						cpWidth++;
+					}
+					C.cursorPos += cpWidth;
 				}
-			}else if(key == GLFW_KEY_BACKSPACE && gamestate.console.cursorPos != 0){
-				gamestate.console.cursorPos--;
-				gamestate.console.commLen--;
-				memmove(&(gamestate.console.comm[gamestate.console.cursorPos]), &(gamestate.console.comm[gamestate.console.cursorPos+1]), (COMMAND_SIZE)-(gamestate.console.cursorPos));
-			}else if(key == GLFW_KEY_ENTER && gamestate.console.commLen != 0){
-				printf("%s\n", gamestate.console.comm);
-				char netmsg[10+gamestate.console.commLen];
-				sprintf(netmsg, "COMM %s#", gamestate.console.comm);
-				appendHistory(gamestate.console.comm);
+			}else if(key == GLFW_KEY_BACKSPACE && C.cursorPos != 0){
+				int cpWidth = 1;
+				while(!utf8_isFirstByte(C.comm[C.cursorPos - cpWidth])){
+					cpWidth++;
+				}
+				memmove(C.comm + C.cursorPos - cpWidth, C.comm + C.cursorPos, COMMAND_SIZE - C.cursorPos);
+				C.cursorPos -= cpWidth;
+				C.commLen -= cpWidth;
+			}else if(key == GLFW_KEY_ENTER && C.commLen != 0){
+				printf("%s\n", C.comm);
+				char netmsg[10+C.commLen];
+				sprintf(netmsg, "COMM %s#", C.comm);
+				appendHistory(C.comm);
 				sendMessage(netmsg, strlen(netmsg), 0);
-				gamestate.console.comm[0] = 0;
-				gamestate.console.commLen = 0;
-				gamestate.console.cursorPos = 0;
+				C.comm[0] = 0;
+				C.commLen = 0;
+				C.cursorPos = 0;
 			}
-			gamestate.console.comm[gamestate.console.commLen] = 0;
+			C.comm[C.commLen] = 0;
 			return;
+			#undef C
 		}
 	}
-	
 	int place = 0;
 	switch(key){
 		case GLFW_KEY_W://forward
