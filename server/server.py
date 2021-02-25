@@ -233,6 +233,11 @@ class Team:
 		for t in Team.teams:
 			board[t.name] = t.points
 		return board
+	def getByName(n):
+		for t in Team.teams:
+			if t.name == n:
+				return t
+		return None
 	def netPack():
 		if not Team.netPackCache:
 			Team.netPackCache = struct.pack('<i', len(Team.teams))
@@ -240,6 +245,13 @@ class Team:
 				Team.netPackCache += struct.pack('<i', t.points)
 		return Team.netPackCache
 	def __init__(self, name, color):
+		name = name.upper()
+		#team names ending in underscore are individual user teams for ffa
+		if Team.getByName(name):
+			uniqueSuffix = 2
+			while Team.getByName(name+"_"+str(uniqueSuffix)):
+				uniqueSuffix += 1
+			name = name+"_"+str(uniqueSuffix)
 		self.name = name
 		self.color = color
 		self.points = 0
@@ -332,28 +344,46 @@ class Client:
 		self.dead = False
 		self.name = "client_"+str(self.id)
 		self.team = None
-		self.team = Team.select()
+		self.setTeam(Team.select())
 		Client.clients.add(self)
 		self.obj = None
 
 	def runcommand(self, tok):
 		print(self.name+' executing: '+' '.join(tok))
-		for tidx in range(len(tok)):
-			tok[tidx] = tok[tidx].upper()
-		if tok[0] == '/NAME':
-			self.name = tok[1]
-			self.obj.setName(self.name)
-			self.sendmsg('CONSName set: '+self.name)
-		elif tok[0] == '/LIST':
-			msg = "CONS"
-			for c in Client.clients:
-				msg += c.name+':'+c.team.name+","
-			self.sendmsg(msg)
-		elif tok[0] == '/HELP':
-			self.sendmsg("CONS/NAME <yourname>\n/LIST")
-		else:
-			self.sendmsg("CONSUnknown command: "+tok[0]+"\nTry /HELP")
-
+		try:
+			for tidx in range(len(tok)):
+				tok[tidx] = tok[tidx].upper()
+			if tok[0] == '/NAME':
+				if(len(tok) < 2):
+					self.sendmsg('CONSBad /NAME usage.\nTry /HELP')
+				else:
+					self.name = tok[1]
+					self.obj.setName(self.name)
+					self.sendmsg('CONSName set: '+self.name)
+			elif tok[0] == '/LIST':
+				msg = "CONS"
+				for c in Client.clients:
+					msg += c.name+':'+c.team.name+","
+				self.sendmsg(msg)
+			elif tok[0] == '/HELP':
+				self.sendmsg("CONS/NAME <yourname>\n/LIST\n/TEAM [TEAMNAME]")
+			elif tok[0] == '/TEAM':
+				print("Token len:", len(tok))
+				if(len(tok) < 2):
+					if(self.team):
+						self.sendmsg("CONS"+self.team.name)
+				else:
+					teamname = tok[1]
+					myNewTeam = Team.getByName(teamname)
+					if(myNewTeam):
+						self.setTeam(myNewTeam)
+						self.sendmsg('CONSTeam set: '+self.team.name)
+					else:
+						self.sendmsg('CONSTeam not found.')
+			else:
+				self.sendmsg("CONSUnknown command: "+tok[0]+"\nTry /HELP")
+		except:
+			print("Caught otherwise unhandled client command exception \"",tok,"\"")
 	def respawn(self, modelId):
 		self.die()
 		color = (0.7, 0.5, 0.5)
@@ -385,6 +415,13 @@ class Client:
 					cliInputs.appendleft(myinput)
 					#print("Got new client msg: "+str(myinput.msg)+"  Remaining buf: "+str(self.buf))
 					break
+	def setTeam(self, team):
+		if(self.team == team):
+			return
+		self.team = team
+		if(self.obj):
+			self.obj.setColor(team.color)
+		self.die()
 	def sendAsg(self):
 		if(self.obj):
 			self.send(b"ASGN" + struct.pack('<i', self.obj.uid))
