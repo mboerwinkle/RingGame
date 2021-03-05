@@ -151,7 +151,7 @@ struct shaderProg createShader(char* vertPath, char* fragPath){
 
 void requestODef(int32_t uid){
 	int32_t* msg = malloc(sizeof(int32_t));
-	*msg = >uid;
+	*msg = uid;
 	mb_itqAdd(&graphicsitq, msg);
 }
 float teamcolors[8] = {0.0, 1.0, 0.941, 1.0, 1.0, 0.0, 0.941, 1.0};
