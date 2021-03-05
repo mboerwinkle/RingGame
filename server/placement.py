@@ -74,4 +74,5 @@ class Placement:#fixme, make forward and up functions that are cached on call un
 	def netPack(self):
 		l = self.loc
 		r = self.rot
-		return struct.pack('<iiiffff', l[0], l[1], l[2], r[0], r[1], r[2], r[3])
+		mult = 32000.0;
+		return struct.pack('!iiihhhh', l[0], l[1], l[2], int(r[0]*mult), int(r[1]*mult), int(r[2]*mult), int(r[3]*mult))

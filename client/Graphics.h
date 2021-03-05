@@ -2,7 +2,6 @@
 #define GRAPHICS_H
 #include <GLFW/glfw3.h>
 #include <pthread.h>
-#include <semaphore.h>
 #include "MB_ITQ.h"
 
 struct font{
@@ -14,10 +13,7 @@ struct font{
 	short letterLen[94];
 };
 
-extern char* frame;
-extern sem_t frameAccess;
 extern mb_itq graphicsitq;
-
 
 extern GLFWwindow* window;
 extern void setCameraLoc(int* l, float* r);

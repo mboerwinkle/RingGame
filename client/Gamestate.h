@@ -1,6 +1,7 @@
 #ifndef GAMESTATE_H
 #define GAMESTATE_H
 #include <time.h>
+#include <semaphore.h>
 #define CONS_ROW 25
 #define CONS_COL 80
 #define HISTORY_SIZE 4000
@@ -17,9 +18,22 @@ struct historyLine{
 	time_t t;
 	short length;
 };
+typedef struct object{
+	int32_t loc[3];
+	float rot[4];
+	int32_t uid;
+	int8_t revision;
+} object;
+struct frame_{
+	object* me;
+	object* obj;
+	int32_t* teamscores;
+	int8_t teamcount;
+	int32_t objcount;
+};
 struct gamestate_{
 	int running;
-	int myShipId;
+	int32_t myShipId;
 	enum{
 		NONE, CONS
 	} screen;
@@ -32,6 +46,8 @@ struct gamestate_{
 		int commLen;
 		int cursorPos;
 	} console;
+	struct frame_* frame;
+	sem_t frameAccess;
 };
 extern struct gamestate_ gamestate;//in Main.c
 extern void appendHistory(char* msg);

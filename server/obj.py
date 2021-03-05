@@ -36,9 +36,9 @@ class Obj:
 	def stepRevision(self):
 		self.revision = (self.revision+1)%100;
 	def netPack(self):
-		return struct.pack('<ib', self.uid, self.revision) + self.pos.netPack()
+		return struct.pack('!ib', self.uid, self.revision) + self.pos.netPack()
 	def netDef(self):
-		return struct.pack('<ibibffff', self.uid, self.revision, self.mid, self.predMode, self.color[0], self.color[1], self.color[2], self.color[3])+(self.name+'\0').encode("UTF-8", errors="replace")
+		return struct.pack('!ibibBBBB', self.uid, self.revision, self.mid, self.predMode, int(self.color[0]*255), int(self.color[1]*255), int(self.color[2]*255), int(self.color[3]*255))+(self.name+'\0').encode("UTF-8", errors="replace")
 	def remove(self):
 		global objects
 		objects.pop(self.uid)

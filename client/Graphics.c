@@ -48,7 +48,7 @@ void cerr(char* msg){
 	}
 }
 
-int cloc[3];//Camera location
+int32_t cloc[3];//Camera location
 
 int XRES = 800;
 int YRES = 800;
@@ -149,74 +149,50 @@ struct shaderProg createShader(char* vertPath, char* fragPath){
 	return ret;
 }
 
+void requestODef(int32_t uid){
+	int32_t* msg = malloc(sizeof(int32_t));
+	*msg = >uid;
+	mb_itqAdd(&graphicsitq, msg);
+}
 float teamcolors[8] = {0.0, 1.0, 0.941, 1.0, 1.0, 0.0, 0.941, 1.0};
-void drawFrame(){
-	char* buf = frame;
-	buf += 4;
-	int loc[3];
-	float rot[4];
-	int teamCount;
-	memcpy(&teamCount, buf, 4);
-	buf+=4;
-	int* teamScores = (int*)buf;
-	buf+=4*teamCount;//get past the scores.
-	int objectCount = *(int*)buf;
-	buf+=4;
-	//printf("Got Frame: %d %d %d (%f %f %f %f) Objects: %d\n", loc[0], loc[1], loc[2], rot[0], rot[1], rot[2], rot[3], objectCount);
-	for(int idx = 0; idx < objectCount; idx++){
-		if(*(int*)(buf+idx*33) == gamestate.myShipId){
-			objDef* mydef = objDefGet(gamestate.myShipId);
-			if(!mydef || mydef->pending == WAITING) break;
-			memcpy(cloc, buf+idx*33+5, 12);
-			memcpy(rot, buf+idx*33+17, 16);
-			float up[3] = {0, 0, 1};
-			float front[3] = {1, 0, 0};
-			float eye[3] = {0, 0, 0};//eye stays at 0 since we use a separate method for offsets
-			rotateVec(up, rot, up);
-			rotateVec(front, rot, front);
-			float mdiameter = models[mydef->modelId].diameter;
-			for(int dim = 0; dim < 3; dim++){
-				cloc[dim] += (-1.2 * front[dim] +  0.5 * up[dim]) * mdiameter;
-			}
-			mat4x4idenf(cam_mat);
-			glhLookAtf2(cam_mat, eye, front, up);
-			break;
+void drawFrame(struct frame_* frame){
+	objDef* mydef = objDefGet(gamestate.myShipId);
+	object* me = frame->me;
+	if(mydef && mydef->pending != WAITING && me){
+		memcpy(cloc, me->loc, 3 * sizeof(int32_t));
+		float up[3] = {0, 0, 1};
+		float front[3] = {1, 0, 0};
+		float eye[3] = {0, 0, 0};//eye stays at 0 since we use a separate method for offsets
+		rotateVec(up, me->rot, up);
+		rotateVec(front, me->rot, front);
+		float mdiameter = models[mydef->modelId].diameter;
+		for(int dim = 0; dim < 3; dim++){
+			cloc[dim] += (-1.2 * front[dim] + 0.5 * up[dim]) * mdiameter;
 		}
+		mat4x4idenf(cam_mat);
+		glhLookAtf2(cam_mat, eye, front, up);
 	}
 	drawStars();
-	//printf("%d objects\n", objectCount);
-	for(int oidx = 0; oidx < objectCount; oidx++){
-		int uid = *(int*)buf;
-		buf+=4;
-		char revision = *(char*)buf;
-		buf+=1;
-		memcpy(loc, buf, 12);
-		buf+=12;
-		memcpy(rot, buf, 16);
-		buf+=16;
-		//printf("Model: %d (%d %d %d) (%f %f %f %f)\n", mid, loc[0], loc[1], loc[2], rot[0], rot[1], rot[2], rot[3]);
-		objDef* o = objDefGet(uid);
-		if(o){
-			o->age = 0;
-			if(o->pending != WAITING){
-				drawModel(o->modelId, o->color, loc, rot, o->name);
-				if(o->revision != revision && o->pending == DONE){
-					o->pending = WAITINGVERSION;
-					int* msg = malloc(sizeof(int));
-					*msg = uid;
-					mb_itqAdd(&graphicsitq, msg);
+	for(int oidx = 0; oidx < frame->objcount; oidx++){
+		object* obj = &(frame->obj[oidx]);
+		objDef* odef = objDefGet(obj->uid);
+		if(odef){
+			odef->age = 0;
+			if(odef->pending != WAITING){
+				drawModel(odef->modelId, odef->color, obj->loc, obj->rot, odef->name);
+				if(odef->revision != obj->revision && odef->pending == DONE){
+					odef->pending = WAITINGVERSION;
+					requestODef(obj->uid);
 				}
 			}
 		}else{
-			objDefInsert(uid);
-			int* msg = malloc(sizeof(int));
-			*msg = uid;
-			mb_itqAdd(&graphicsitq, msg);
+			objDefInsert(obj->uid);
+			requestODef(obj->uid);
 		}
 	}
-	for(int tIdx = 0; tIdx < teamCount; tIdx++){
+	for(int tIdx = 0; tIdx < frame->teamcount; tIdx++){
 		char scoreMsg[80];
-		sprintf(scoreMsg, "Team %d: %d", tIdx, teamScores[tIdx]);
+		sprintf(scoreMsg, "Team %d: %d", tIdx, frame->teamscores[tIdx]);
 		drawHudText(scoreMsg, &myfont, 0, myfont.invaspect*1.5*tIdx*0.02, 0.02, &(teamcolors[4*tIdx]), strlen(scoreMsg));
 	}
 }
@@ -268,16 +244,16 @@ void* graphicsLoop(void* none){
 		glViewport(0, 0, width, height);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		//delay(60);
-		sem_wait(&frameAccess);
-		if(frame){
-			drawFrame();
+		sem_wait(&(gamestate.frameAccess));
+		if(gamestate.frame){
+			drawFrame(gamestate.frame);
 		}
 		if(gamestate.screen == CONS){
 			drawConsole(1);
 		}else{
 			drawConsole(0);
 		}
-		sem_post(&frameAccess);
+		sem_post(&(gamestate.frameAccess));
 		glfwSwapBuffers(window);
 	}
 	return NULL;
@@ -286,7 +262,7 @@ void* graphicsLoop(void* none){
 void initGraphics(){
 	mb_itqInit(&graphicsitq);
 	frame = NULL;
-	sem_init(&frameAccess, 0, 1);
+	sem_init(&(gamestate.frameAccess), 0, 1);
 	glfwSetErrorCallback(error_callback);
 	/* Initialize the library */
 	if (!glfwInit()){

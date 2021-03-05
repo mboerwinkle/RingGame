@@ -77,9 +77,10 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 			}else if(key == GLFW_KEY_ENTER && C.commLen != 0){
 				printf("%s\n", C.comm);
 				char netmsg[10+C.commLen];
-				sprintf(netmsg, "COMM %s#", C.comm);
+				sprintf(netmsg+4, "COMM%s", C.comm);
+				*(int32_t*)netmsg = htonI32(strlen(netmsg+4));
 				appendHistory(C.comm);
-				sendMessage(netmsg, strlen(netmsg), 0);
+				sendMessage(netmsg, 4+strlen(netmsg+4), 0);
 				C.comm[0] = 0;
 				C.commLen = 0;
 				C.cursorPos = 0;

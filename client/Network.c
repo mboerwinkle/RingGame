@@ -46,8 +46,8 @@ void processMessage(char* buf, int len){
 	mb_itqAdd(&netitq, msg);
 }
 
-int bufLen;
-int bufUse;
+int32_t bufLen;
+int32_t bufUse;
 char* buf;
 void* netListenLoop(void* none){
 	buf = NULL;
@@ -73,7 +73,7 @@ void* netListenLoop(void* none){
 		int foundSomething = 1;
 		while(foundSomething){
 			foundSomething = 0;
-			int msgLen = ((int*)buf)[0];
+			int32_t msgLen = ntohI32(*(int32_t*)buf);
 			//printf("buf is now: %30s... (msglen: %d)\n", buf+4, msgLen);
 			if(bufUse-4 >= msgLen){
 				processMessage(buf+4, msgLen);
@@ -88,9 +88,9 @@ void* netListenLoop(void* none){
 
 void sendInputs(){
 	char msg[51];
-	snprintf(msg, 50, "CTRL %x#", control.s);
-	//printf("%s\n", msg);
-	sendMessage(msg, strlen(msg), 1);//this should use a parallel UDP
+	snprintf(msg+4, 46, "CTRL%x", control.s);
+	*((int32_t*)msg) = htonI32(strlen(msg+4));
+	sendMessage(msg, 4+strlen(msg+4), 1);//this should use a parallel UDP
 }
 void sendMessage(void* msg, int len, int nodelay){
 	if(connected){
@@ -100,6 +100,25 @@ void sendMessage(void* msg, int len, int nodelay){
 		flag = 0;
 		setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
 	}
+}
+//Custom wrapper for easier platform dependent stuff
+int32_t htonI32(int32_t i){
+	return htonl(i);
+}
+int32_t ntohI32(int32_t i){
+	return ntohl(i);
+}
+int16_t ntohI16(int16_t i){
+	return ntohs(i);
+}
+//ret is length 4 quaternion. ndata is network data. Returns network length
+int ntohQuat(float* ret, int8_t* ndata){
+	for(int idx = 0; idx < 4; idx++){
+		int16_t val = *(int16_t*)(&(ndata[2*idx]));
+		double intermed = ntohI16(val);
+		ret[idx] = intermed / 32000.0;
+	}
+	return 8;
 }
 
 void shutdownNetwork(){

@@ -179,20 +179,22 @@ def roundLoop():
 
 
 def handleClientInput(i):
-	tok = i.msg.split()
+	comm = i.msg[0:4]
+	rest = i.msg[4:]
 	cli = clientsById[i.id]
-	if tok[0] == 'CTRL':
-		cli.control = int(tok[1], 16)
+	if comm == b'CTRL':
+		cli.control = int(rest, 16)
 		#print(str(i.id)+" controls: "+str(cli.control))
-	elif tok[0] == 'COMM':
-		if len(tok) > 1 and tok[1][0] == '/':
-			cli.runcommand(tok[1:])
-		else:
-			Client.chat(cli.name+": "+i.msg[5:200])#skip 'COMM ' prefix
-	elif tok[0] == 'RDEF':
-		uid = int(tok[1], 16);
+	elif comm == b'COMM':
+		if len(rest) >= 1:
+			if rest[0] == ord('/'):
+				cli.runcommand(rest.decode('UTF-8').split())
+			else:
+				Client.chat(cli.name+": "+rest.decode('UTF-8'))
+	elif comm == b'RDEF':
+		uid = struct.unpack('!i', i.msg[4:])[0]
 		if uid in obj.objects.keys():
-			targ = obj.objects[int(tok[1], 16)]
+			targ = obj.objects[uid]
 			cli.sendDef(targ)
 		else:
 			print("ignoring request for", uid)
@@ -240,9 +242,9 @@ class Team:
 		return None
 	def netPack():
 		if not Team.netPackCache:
-			Team.netPackCache = struct.pack('<i', len(Team.teams))
+			Team.netPackCache = struct.pack('!b', len(Team.teams))
 			for t in Team.teams:
-				Team.netPackCache += struct.pack('<i', t.points)
+				Team.netPackCache += struct.pack('!i', t.points)
 		return Team.netPackCache
 	def __init__(self, name, color):
 		name = name.upper()
@@ -336,6 +338,7 @@ class Client:
 		self.id = newCliId
 		newCliId += 1
 		self.buf = bytes()
+		self.obj = None
 		self.control = 0
 		self.pitch = 0.0
 		self.yaw = 0.0
@@ -346,7 +349,7 @@ class Client:
 		self.team = None
 		self.setTeam(Team.select())
 		Client.clients.add(self)
-		self.obj = None
+
 
 	def runcommand(self, tok):
 		print(self.name+' executing: '+' '.join(tok))
@@ -403,18 +406,18 @@ class Client:
 			c.die()
 	def append(self, data):
 		self.buf = self.buf+data
-		#print(self.buf.decode('UTF-8'))
 		foundSomething = True
 		while foundSomething:
 			foundSomething = False
-			for x in range(len(self.buf)):
-				if self.buf[x] == ord('#'):
-					foundSomething = True
-					myinput = CliInput(self.id, self.buf[:x].decode("UTF-8"))
-					self.buf = self.buf[x+1:]
-					cliInputs.appendleft(myinput)
-					#print("Got new client msg: "+str(myinput.msg)+"  Remaining buf: "+str(self.buf))
-					break
+			remainingLen = len(self.buf)
+			if(remainingLen < 4):
+				break
+			nextMsgLen = struct.unpack('!i', self.buf[:4])[0]
+			if remainingLen-4 >= nextMsgLen:
+				foundSomething = True
+				myinput = CliInput(self.id, self.buf[4:nextMsgLen+4])
+				cliInputs.appendleft(myinput)
+				self.buf = self.buf[nextMsgLen+4:]
 	def setTeam(self, team):
 		if(self.team == team):
 			return
@@ -424,11 +427,11 @@ class Client:
 		self.die()
 	def sendAsg(self):
 		if(self.obj):
-			self.send(b"ASGN" + struct.pack('<i', self.obj.uid))
+			self.send(b"ASGN" + struct.pack('!i', self.obj.uid))
 	def sendDef(self, o):
 		self.send(b"ODEF" + o.netDef())
 	def sendUpdate(self):
-		fMsg = b"FRME" +Team.netPack()+ struct.pack('<i', len(obj.objects))
+		fMsg = b"FRME"+Team.netPack()+struct.pack('!i', len(obj.objects))
 		for o in obj.objects.values():
 			fMsg += o.netPack()
 		self.send(fMsg)
@@ -436,7 +439,7 @@ class Client:
 		self.send(msg.encode("UTF-8"))
 	def send(self, data):
 		try:
-			self.soc.sendall(len(data).to_bytes(4, byteorder='little')+data)
+			self.soc.sendall(len(data).to_bytes(4, byteorder='big')+data)
 		except Exception as e:
 			print("Socket failed to write")
 			self.ts_remove()

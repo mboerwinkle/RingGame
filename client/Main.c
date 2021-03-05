@@ -16,60 +16,94 @@
 struct gamestate_ gamestate = {.running = 1, .myShipId = -1, .screen = NONE,
 	.console={.comm = {0}, .commLen = 0, .cursorPos = 0, .historyStart = NULL,
 	.historyEnd = NULL, .historyView = NULL, .historyUsage = 0}};
+
 void processGraphicsRequests(){
-	int* uid = mb_itqDequeueNoBlock(&graphicsitq);
+	int8_t buf[12] = "\0\0\0\0RDEF";
+	*(int32_t*)buf = htonI32(8);
+	int32_t* uid = mb_itqDequeueNoBlock(&graphicsitq);
 	while(uid){
-		char buf[40];
-		sprintf(buf, "RDEF %x#", *uid);
-		sendMessage(buf, strlen(buf), 0);
+		(*(int32_t*)(buf+8)) = htonI32(*uid);
 		free(uid);
+		sendMessage(buf, 12, 0);
 		uid = mb_itqDequeueNoBlock(&graphicsitq);
 	}
 }
-void processNetData(char* buf){
-	if(!strncmp("FRME", buf, 4)){
-		char* oldbuf = frame;
-		sem_wait(&frameAccess);
-		frame = buf;
-		sem_post(&frameAccess);
-		free(oldbuf);
-	}else if(!strncmp("CONS", buf, 4)){
-		appendHistory(buf+4);
-		free(buf);
-	}else if(!strncmp("ODEF", buf, 4)){
-		char* originalbuf = buf;
+void processNetData(int8_t* buf){
+	int8_t* originalBuf = buf;//for freeing
+	if(!strncmp("FRME", (char*)buf, 4)){
+		struct frame_* oldFrame = gamestate.frame;
+		struct frame_* frame = (struct frame_*)malloc(sizeof(struct frame_));
+		frame->me = NULL;
+		buf+=4;//get past "FRME"
+		frame->teamcount = *(buf++);
+		frame->teamscores = (int32_t*)malloc(frame->teamcount * sizeof(int32_t));
+		for(int teamIdx = 0; teamIdx < frame->teamcount; teamIdx++){
+			frame->teamscores[teamIdx] = ntohI32(*(int32_t*)buf);
+			buf+=4;
+		}
+		frame->objcount = ntohI32(*(int32_t*)buf);
 		buf+=4;
-		int uid = *(int*)buf;
+		frame->obj = (object*)malloc(frame->objcount * sizeof(object));
+		for(int oidx = 0; oidx < frame->objcount; oidx++){
+			object o;
+			o.uid = ntohI32(*(int32_t*)buf);
+			buf+=4;
+			o.revision = *(buf++);
+			for(int dim = 0; dim < 3; dim++){
+				o.loc[dim] = ntohI32(*(int32_t*)buf);
+				buf+=4;
+			}
+			buf += ntohQuat(o.rot, buf);
+			frame->obj[oidx] = o;
+			if(o.uid == gamestate.myShipId){
+				frame->me = &(frame->obj[oidx]);
+			}
+		}
+		//swap the frames
+		sem_wait(&(gamestate.frameAccess));
+		gamestate.frame = frame;
+		sem_post(&(gamestate.frameAccess));
+		//Free the old frame
+		if(oldFrame){
+			free(oldFrame->obj);
+			free(oldFrame->teamscores);
+			free(oldFrame);
+		}
+	}else if(!strncmp("CONS", (char*)buf, 4)){
+		appendHistory((char*)(buf+4));
+	}else if(!strncmp("ODEF", (char*)buf, 4)){
+		buf+=4;
+		int32_t uid = ntohI32(*(int32_t*)buf);
 		buf+=4;
 		//self.uid, self.mid, self.predMode, self.color[0], self.color[1], self.color[2])+(self.name+'\0'
-		sem_wait(&frameAccess);
+		sem_wait(&(gamestate.frameAccess));
 		objDef* t = objDefGet(uid);
 		//if the graphics loop hasn't created this request, create one anyway
 		if(!t){
 			t = objDefInsert(uid);
 		}
-		sem_post(&frameAccess);
-		t->revision = *(char*)buf;
-		buf+=1;
-		t->modelId = *(int*)buf;
+		sem_post(&(gamestate.frameAccess));
+		t->revision = *(buf++);
+		t->modelId = ntohI32(*(int32_t*)buf);
 		buf+=4;
-		t->predictionMode = *(char*)buf;
-		buf+=1;
-		memcpy(t->color, buf, 16);
-		buf+=16;
-		t->name = calloc(strlen(buf)+1, 1);
-		strcpy(t->name, buf);
+		t->predictionMode = *(buf++);
+		uint8_t color[4];
+		memcpy(color, buf, 4);
+		for(int chanIdx = 0; chanIdx < 4; chanIdx++){
+			t->color[chanIdx] = (float)(color[chanIdx]) / 255.0;
+		}
+		buf+=4;
+		t->name = calloc(strlen((char*)buf)+1, 1);
+		strcpy(t->name, (char*)buf);
 		t->pending = DONE;
-		free(originalbuf);
-	}else if(!strncmp("ASGN", buf, 4)){
-		gamestate.myShipId = *(int*)(buf+4);
-		free(buf);
+	}else if(!strncmp("ASGN", (char*)buf, 4)){
+		gamestate.myShipId = ntohI32(*(int32_t*)(buf+4));
 	}else{
-		if(strlen(buf) < 4){
+		if(strlen((char*)buf) < 4){
 			printf("Unknown short message\n");
 		}else printf("Unknown message type %.4s\n", buf);
-		free(buf);
 	}
+	free(originalBuf);
 }
 
 int main(int argc, char** argv){
@@ -97,12 +131,12 @@ int main(int argc, char** argv){
 		processGraphicsRequests();
 		if(msg){
 			//if we haven't seen this object in some time, delete it.
-			sem_wait(&frameAccess);
+			sem_wait(&(gamestate.frameAccess));
 			objDefDeleteOld(30);
 			objDefAgeAll();
-			sem_post(&frameAccess);
+			sem_post(&(gamestate.frameAccess));
 			while(msg){
-				processNetData(msg);
+				processNetData((int8_t*)msg);
 				msg = mb_itqDequeueNoBlock(&netitq);
 			}
 			//only send controls as often as we recieve data
