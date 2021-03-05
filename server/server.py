@@ -12,6 +12,7 @@ from collections import deque as deque
 import obj
 
 from placement import Placement
+from placement import Quat
 import waitFramerate
 from hypercubeCollide import hypercol
 
@@ -185,6 +186,10 @@ def handleClientInput(i):
 	if comm == b'CTRL':
 		cli.control = int(rest, 16)
 		#print(str(i.id)+" controls: "+str(cli.control))
+	elif comm == b'ORNT':
+		orientation = Quat.netunpack(rest)
+		if cli.obj:
+			cli.obj.pos.rot = orientation
 	elif comm == b'COMM':
 		if len(rest) >= 1:
 			if rest[0] == ord('/'):
@@ -462,9 +467,9 @@ class Client:
 		speed = maniModel['speed']/framerate
 		trange = maniModel['trange']#throttle position range information
 		turnspeed = maniModel['turn']/framerate
-		posObj.rotZ(self.yaw*turnspeed)
-		posObj.rotY(self.pitch*turnspeed)
-		posObj.rotX(self.roll*turnspeed)
+		posObj.rot.rotZ(self.yaw*turnspeed)
+		posObj.rot.rotY(self.pitch*turnspeed)
+		posObj.rot.rotX(self.roll*turnspeed)
 
 		realthrottle = self.throttle
 		if self.throttle >= 0 :
