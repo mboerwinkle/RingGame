@@ -37,11 +37,26 @@ class Quat(list):
 		ret[2]=(b[0] * a[2] - b[1] * a[3] + b[2] * a[0] + b[3] * a[1])
 		ret[3]=(b[0] * a[3] + b[1] * a[2] - b[2] * a[1] + b[3] * a[0])
 		return Quat(ret)
+	def dot(s, b):
+		return s[0]*b[0]+s[1]*b[1]+s[2]*b[2]+s[3]*b[3]
 	def vecmult(q, v):
 		rev = Quat((q[0], -q[1], -q[2], -q[3]))
 		vq = Quat((0, v[0], v[1], v[2]))
 		res = q.mult(vq.mult(rev))
 		return res[1:]
+	def lerp(one, two, t):
+		i = 1.0-t
+		return Quat((two[0]*t+one[0]*i, two[1]*t+one[1]*i, two[1]*t+one[1]*i, two[1]*t+one[1]*i))
+	def slerp(one, two, t):
+		#per wikipedia and shoemake slerp, one*( (one^-1) * two )^t
+		theta = math.acos(one.dot(two))
+		if theta < 0:#prevent wrong direction arcing
+			theta = -theta
+		t = t/2
+		b = math.sin(theta)
+		m1 = math.sin((1-t)*theta)/s
+		m2 = math.sin(t*theta)/s
+		return Quat((one[0]*m1+two[0]*m2, one[1]*m1+two[1]*m2, one[2]*m1+two[2]*m2, one[3]*m1+two[3]*m2))
 	def randomize(self):
 		for idx in range(4):
 			self[idx] = random.uniform(-1,1)
@@ -72,7 +87,7 @@ class Quat(list):
 		m = Quat.netPackMult
 		raw = list(struct.unpack('!hhhh', data))
 		for idx in range(4):
-			raw /= m
+			raw[idx] /= m
 		return Quat(raw)
 class Placement:
 	def __init__(self):

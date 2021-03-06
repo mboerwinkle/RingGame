@@ -3,13 +3,13 @@
 #include <string.h>
 #include <GLFW/glfw3.h>
 #include <utf8proc.h>
+#include <assert.h>
 
 #include "Input.h"
 #include "Graphics.h"
 #include "Network.h"
 #include "Gamestate.h"
-#include "assert.h"
-
+#include "Quaternion.h"
 
 int utf8_isFirstByte(char b){
 	//check for all Byte1 patterns (includes null byte)
@@ -127,7 +127,22 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 		}
 	}
 }
-
+void updateRotations(float framerate){
+	objDef* mydef = objDefGet(gamestate.myShipId);
+	if(!mydef || mydef->pending == WAITING) return;//We don't know how fast to turn
+	float* lr = gamestate.localRotation;
+	float turnspeed = gamestate.turnspeed/framerate;
+	int32_t s = control.s;
+	double yaw = turnspeed * (((s>>1)&1) - ((s>>2)&1));
+	double pitch = turnspeed * (((s>>4)&1) - ((s>>3)&1));
+	double roll = turnspeed * (((s>>7)&1) - ((s>>5)&1));
+	//printf("Pitch: %.2lf  Yaw: %.2lf  Roll: %.2lf\n", pitch, yaw, roll);
+	quat_rotZ(lr, lr, yaw);
+	quat_rotY(lr, lr, pitch);
+	quat_rotX(lr, lr, roll);
+	quat_norm(lr);
+	memcpy(gamestate.viewRotation, lr, sizeof(float)*4);//lock view direction to target turn direction
+}
 int handleInput(){
 	glfwPollEvents();
 	if(glfwWindowShouldClose(window)) return 1;

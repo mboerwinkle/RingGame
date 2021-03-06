@@ -187,9 +187,7 @@ def handleClientInput(i):
 		cli.control = int(rest, 16)
 		#print(str(i.id)+" controls: "+str(cli.control))
 	elif comm == b'ORNT':
-		orientation = Quat.netunpack(rest)
-		if cli.obj:
-			cli.obj.pos.rot = orientation
+		cli.targetOrientation = Quat.netunpack(rest)
 	elif comm == b'COMM':
 		if len(rest) >= 1:
 			if rest[0] == ord('/'):
@@ -348,6 +346,7 @@ class Client:
 		self.pitch = 0.0
 		self.yaw = 0.0
 		self.roll = 0.0
+		self.targetOrientation = Quat()
 		self.throttle = 0.0
 		self.dead = False
 		self.name = "client_"+str(self.id)
@@ -432,7 +431,7 @@ class Client:
 		self.die()
 	def sendAsg(self):
 		if(self.obj):
-			self.send(b"ASGN" + struct.pack('!i', self.obj.uid))
+			self.send(b"ASGN" + struct.pack('!ih', self.obj.uid, int(manifest['models'][self.obj.mid]['turn']*100.0)))
 	def sendDef(self, o):
 		self.send(b"ODEF" + o.netDef())
 	def sendUpdate(self):
@@ -466,11 +465,8 @@ class Client:
 		maniModel = manifest['models'][self.obj.mid]
 		speed = maniModel['speed']/framerate
 		trange = maniModel['trange']#throttle position range information
-		turnspeed = maniModel['turn']/framerate
-		posObj.rot.rotZ(self.yaw*turnspeed)
-		posObj.rot.rotY(self.pitch*turnspeed)
-		posObj.rot.rotX(self.roll*turnspeed)
-
+		if self.obj:
+			self.obj.pos.rot = self.targetOrientation
 		realthrottle = self.throttle
 		if self.throttle >= 0 :
 			realthrottle = trange[1]+(self.throttle*(trange[2]-trange[1]))

@@ -13,9 +13,21 @@
 #include "Graphics.h"
 #include "Gamestate.h"
 
-struct gamestate_ gamestate = {.running = 1, .myShipId = -1, .screen = NONE,
-	.console={.comm = {0}, .commLen = 0, .cursorPos = 0, .historyStart = NULL,
-	.historyEnd = NULL, .historyView = NULL, .historyUsage = 0}};
+struct gamestate_ gamestate = {.running = 1,
+.myShipId = -1,
+.localRotation = {1,0,0,0},
+.viewRotation = {1,0,0,0},
+.screen = NONE,
+.console={
+	.comm = {0},
+	.commLen = 0,
+	.cursorPos = 0,
+	.historyStart = NULL,
+	.historyEnd = NULL,
+	.historyView = NULL,
+	.historyUsage = 0
+}
+};
 
 void processGraphicsRequests(){
 	int8_t buf[12] = "\0\0\0\0RDEF";
@@ -97,7 +109,11 @@ void processNetData(int8_t* buf){
 		strcpy(t->name, (char*)buf);
 		t->pending = DONE;
 	}else if(!strncmp("ASGN", (char*)buf, 4)){
-		gamestate.myShipId = ntohI32(*(int32_t*)(buf+4));
+		buf += 4;
+		gamestate.myShipId = ntohI32(*(int32_t*)(buf));
+		buf += 4;
+		gamestate.turnspeed = (float)ntohI16(*(int16_t*)buf) / 100.0;
+		buf+=2;
 	}else{
 		if(strlen((char*)buf) < 4){
 			printf("Unknown short message\n");
@@ -129,6 +145,7 @@ int main(int argc, char** argv){
 	while (!handleInput()){
 		char* msg = mb_itqDequeueTimed(&netitq, 0, 8333333);//process input at 120fps
 		processGraphicsRequests();
+		updateRotations(120);
 		if(msg){
 			//if we haven't seen this object in some time, delete it.
 			sem_wait(&(gamestate.frameAccess));
@@ -144,6 +161,7 @@ int main(int argc, char** argv){
 				sendInputs();
 				controlChanged = 0;
 			}
+			sendOrientation(gamestate.localRotation);
 		}
 	}
 	gamestate.running = 0;

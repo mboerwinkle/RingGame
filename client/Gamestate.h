@@ -34,6 +34,9 @@ struct frame_{
 struct gamestate_{
 	int running;
 	int32_t myShipId;
+	float localRotation[4];
+	float viewRotation[4];
+	float turnspeed;
 	enum{
 		NONE, CONS
 	} screen;

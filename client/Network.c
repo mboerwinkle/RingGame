@@ -7,6 +7,7 @@
 #include <netinet/tcp.h> //For tcp_nodelay
 #include <pthread.h>
 #include <poll.h>
+#include <assert.h>
 
 #include "Network.h"
 #include "Input.h"
@@ -92,6 +93,13 @@ void sendInputs(){
 	*((int32_t*)msg) = htonI32(strlen(msg+4));
 	sendMessage(msg, 4+strlen(msg+4), 1);//this should use a parallel UDP
 }
+void sendOrientation(float* quat){
+	char msg[16] = "\0\0\0\0ORNT";
+	int len = htonQuat((int8_t*)&(msg[8]), quat);
+	assert(sizeof(msg) >= 8+len);
+	*(int32_t*)msg = htonI32(4+len);
+	sendMessage(msg, 8+len, 1);
+}
 void sendMessage(void* msg, int len, int nodelay){
 	if(connected){
 		int flag = nodelay;
@@ -111,16 +119,25 @@ int32_t ntohI32(int32_t i){
 int16_t ntohI16(int16_t i){
 	return ntohs(i);
 }
+int16_t htonI16(int16_t i){
+	return htons(i);
+}
 //ret is length 4 quaternion. ndata is network data. Returns network length
+#define NETQUATRES 32000.0
 int ntohQuat(float* ret, int8_t* ndata){
 	for(int idx = 0; idx < 4; idx++){
 		int16_t val = *(int16_t*)(&(ndata[2*idx]));
 		double intermed = ntohI16(val);
-		ret[idx] = intermed / 32000.0;
+		ret[idx] = intermed / NETQUATRES;
 	}
 	return 8;
 }
-
+int htonQuat(int8_t* ndata, float* quat){
+	for(int idx = 0; idx < 4; idx++){
+		*(int16_t*)(&(ndata[2*idx])) = htonI16((double)(quat[idx]) * NETQUATRES);
+	}
+	return 8;
+}
 void shutdownNetwork(){
 	if(connected){
 		int joinRet = pthread_join(netthread, NULL);

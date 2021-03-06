@@ -158,19 +158,18 @@ float teamcolors[8] = {0.0, 1.0, 0.941, 1.0, 1.0, 0.0, 0.941, 1.0};
 void drawFrame(struct frame_* frame){
 	objDef* mydef = objDefGet(gamestate.myShipId);
 	object* me = frame->me;
+	float up[3] = {0, 0, 1};
+	float front[3] = {1, 0, 0};
+	rotateVec(up, gamestate.viewRotation, up);
+	rotateVec(front, gamestate.viewRotation, front);
+	mat4x4idenf(cam_mat);
+	glhLookAtf2(cam_mat, (float[3]){0.0f,0.0f,0.0f}, front, up);//eye stays at 0 since we use a separate method for offsets
 	if(mydef && mydef->pending != WAITING && me){
 		memcpy(cloc, me->loc, 3 * sizeof(int32_t));
-		float up[3] = {0, 0, 1};
-		float front[3] = {1, 0, 0};
-		float eye[3] = {0, 0, 0};//eye stays at 0 since we use a separate method for offsets
-		rotateVec(up, me->rot, up);
-		rotateVec(front, me->rot, front);
 		float mdiameter = models[mydef->modelId].diameter;
 		for(int dim = 0; dim < 3; dim++){
 			cloc[dim] += (-1.2 * front[dim] + 0.5 * up[dim]) * mdiameter;
 		}
-		mat4x4idenf(cam_mat);
-		glhLookAtf2(cam_mat, eye, front, up);
 	}
 	drawStars();
 	for(int oidx = 0; oidx < frame->objcount; oidx++){
