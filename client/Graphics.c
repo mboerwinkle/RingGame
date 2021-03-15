@@ -194,6 +194,7 @@ void drawFrame(struct frame_* frame){
 		sprintf(scoreMsg, "Team %d: %d", tIdx, frame->teamscores[tIdx]);
 		drawHudText(scoreMsg, &myfont, 0, myfont.invaspect*1.5*tIdx*0.02, 0.02, &(teamcolors[4*tIdx]), strlen(scoreMsg));
 	}
+	drawCrosshairs();
 }
 void drawConsole(int mode){
 	if(mode == 1){
@@ -361,6 +362,18 @@ void drawHudText(char* str, struct font* f, double x, double y, double scale, fl
 		if(letter < 0 || letter >= 94) continue;
 		glDrawElements(GL_TRIANGLES, f->letterLen[letter], GL_UNSIGNED_SHORT, (void*) (sizeof(short)*f->letterStart[letter]));
 	}
+}
+void drawCrosshairs() {
+	glDisable(GL_DEPTH_TEST);
+	glUseProgram(hudShader.program);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	GLfloat crosshairs[8] = {0.47,0.50, 0.53,0.50,   0.50,0.47, 0.50,0.53};
+	glVertexAttribPointer(hudShader.a_loc, 2, GL_FLOAT, GL_FALSE, 0, (void*)crosshairs);
+	glUniform1f(hudShader.u_scale, 1.0);
+	glUniform1f(hudShader.u_aspect, 1.0);
+	glUniform2f(hudShader.u_offset, 0,0);
+	glUniform4f(hudShader.u_color, 1,0,0,1);
+	glDrawArrays(GL_LINES, 0, 4);
 }
 
 void shutdownGraphics(){
