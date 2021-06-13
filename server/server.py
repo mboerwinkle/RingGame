@@ -2,7 +2,6 @@ import socket #for client connections
 import select
 import sys
 import time
-import json
 import math
 import random
 import struct
@@ -14,6 +13,7 @@ import obj
 from placement import Placement
 from placement import Quat
 import waitFramerate
+import assetManifest
 from hypercubeCollide import hypercol
 
 framerate = 30.0
@@ -42,9 +42,11 @@ class CliInput:
 		self.msg = msg
 
 def init():
-	global cliInputs, collide
+	global cliInputs, collide, manifest
 	#load model manifest
-	readManifest()
+	manifest = assetManifest.readManifest("assets/manifest3.json")
+	if manifest == None:
+		return
 	#start client listener
 	startNetworking()
 	#create collider object
@@ -58,19 +60,6 @@ def init():
 		print(roundResults)
 		time.sleep(1)#inter-round delay
 	collide = None
-
-
-def readManifest():
-	global manifest
-	if not os.path.isdir("assets"):
-		sys.exit("Fatal: ./assets directory does not exist!")
-	fd = open("assets/manifest3.json", mode="r")
-	if not fd:
-		print("Could not open manifest!")
-		return
-	manifest = json.load(fd)
-	#print(str(manifest))
-	fd.close()
 
 def setupNewRound():
 	Client.dieAll()
