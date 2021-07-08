@@ -98,9 +98,12 @@ class Placement:
 	def copy(self, other):
 		self.loc = other.loc.copy()
 		self.rot = other.rot.copy()
+	def moveBy(self, vec, amt):
+		self.moveRel([vec[d]*amt for d in range(3)])
 	def moveForward(self, amt):
-		f = self.rot.forward()
-		self.moveRel([f[0]*amt, f[1]*amt, f[2]*amt])
+		self.moveBy(self.rot.forward(), amt)
+	def moveUp(self, amt):
+		self.moveBy(self.rot.up(), amt)
 	def randomize(self, bound):
 		for idx in range(3):
 			self.loc[idx] = random.randint(-bound, bound)

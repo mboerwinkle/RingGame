@@ -66,7 +66,7 @@ void loadData(){
 	models = calloc(modelCount, sizeof(struct model));
 	for(int midx = 0; midx < modelCount; midx++){
 		char path[100];
-		sprintf(path, "assets/%s.stl", jsonGetString(jsonGetObj(jsonGetArr(jsonGetObj(*manifest, "models"), midx), "name")));
+		sprintf(path, "assets/stl/%s.stl", jsonGetString(jsonGetObj(jsonGetArr(jsonGetObj(*manifest, "models"), midx), "name")));
 		FILE* fp = fopen(path, "r");
 		if(fp == NULL){
 			printf("Failed to open %s\n", path);

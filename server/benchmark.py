@@ -9,7 +9,7 @@ from hypercubeCollide import hypercol
 manifest = assetManifest.readManifest("assets/manifest3.json")
 collide = hypercol.Hypercol(3)#request a 3D collider
 for x in manifest["models"]:
-	collide.loadOClass(x['name'], "assets/"+x['name']+".nhc3")
+	collide.loadOClass(x['name'], "assets/nhc3/"+x['name']+".nhc3")
 
 def testcase1():
 	myscene = collide.newScene([[1]])

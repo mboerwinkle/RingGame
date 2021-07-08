@@ -20,8 +20,10 @@ framerate = 30.0
 con_vel = 3.0/framerate #it takes a third of a second for binary input players to go from neutral to maximum control
 collisionRules = [
 [0, 1, 0, 0],#rings
+#[0, 1, 1, 0],
 [1, 1, 1, 1],#ships
 [0, 1, 0, 1],#asteroids
+#[0, 1, 1, 1],
 [0, 1, 1, 0]#missiles
 ]
 cliInputs = deque()
@@ -52,7 +54,7 @@ def init():
 	#create collider object
 	collide = hypercol.Hypercol(3)#request a 3D collider
 	for x in manifest["models"]:
-		collide.loadOClass(x['name'], "assets/"+x['name']+".nhc3")
+		collide.loadOClass(x['name'], "assets/nhc3/"+x['name']+".nhc3")
 	while True:
 		print("Starting new round")
 		setupNewRound()
@@ -78,7 +80,6 @@ def setupNewRound():
 	for idx in range(5):
 		asteroid = obj.Obj(random.choice((3, 4, 6)), 2)
 		asteroid.pos.randomize(20000)
-
 	#Team("Yellow", (1.0, 0.941, 0))
 
 def roundLoop():
@@ -137,6 +138,7 @@ def roundLoop():
 				continue
 			for col in c.obj.collisions:
 				if col.solid:
+					Client.chat(c.name+" died")
 					c.respawn(0)
 					if c.team != None:
 						c.team.award(-1000)
@@ -272,7 +274,7 @@ class Missile:
 	def __init__(self, originObj):
 		self.obj = obj.Obj(5, 3)
 		self.obj.pos.copy(originObj.pos)
-		self.obj.pos.moveForward(0.6*(manifest['models'][self.obj.mid]['diameter']+manifest['models'][originObj.mid]['diameter']))
+		self.obj.pos.moveForward(0.75*(manifest['models'][self.obj.mid]['diameter']+manifest['models'][originObj.mid]['diameter']))
 		self.lifetime = int(3*framerate)
 		self.speed = manifest['models'][self.obj.mid]['speed']/framerate
 		Missile.missiles.add(self)
