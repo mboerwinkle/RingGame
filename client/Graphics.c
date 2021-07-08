@@ -89,7 +89,7 @@ void drawStars(){
 	glVertexAttribPointer(starShader.a_loc, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*) 0);
 	glUniformMatrix4fv(starShader.u_lens, 1, GL_FALSE, cam_lens);
 	glUniformMatrix4fv(starShader.u_cam, 1, GL_FALSE, cam_mat);
-	glUniform3f(solidShader.u_offset, cloc[0], cloc[1], cloc[2]);
+	glUniform3f(starShader.u_offset, cloc[0], cloc[1], cloc[2]);
 	glDrawArrays(GL_POINTS, 0, starCount);
 }
 char* readFileContents(char* path){
