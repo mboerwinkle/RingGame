@@ -11,6 +11,3 @@ rm -f client/assets
 ln -s ../RingGameAssets client/assets
 rm -f server/assets
 ln -s ../RingGameAssets server/assets
-#make assets
-cd RingGameAssets
-make
