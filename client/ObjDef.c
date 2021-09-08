@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <assert.h>
 #include "Gamestate.h"
 
@@ -8,10 +9,14 @@
 objDef* objDefRoot = NULL;
 void objDefTest(int draw);
 void objDefInit(){
-	objDefTest(0);
+	#ifndef NDEBUG
+		objDefTest(0);
+	#endif
 }
 void objDefFree(objDef* t){
-	free(t->name);
+	if(t->otype == 'o'){
+		free(t->odat.name);
+	}
 	free(t);
 }
 void getNewHeight(objDef* t){
@@ -155,8 +160,8 @@ objDef* objDefInsert(int id){
 	n->id = id;
 	n->pending = WAITING;
 	n->revision = -1;
+	n->otype = 0;
 	n->age = 0;
-	n->name = NULL;
 	if(objDefRoot == NULL){
 		objDefRoot = n;
 	}else{

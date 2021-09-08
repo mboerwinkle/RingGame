@@ -3,6 +3,8 @@ import struct
 #FIXME use '!' (network order) instead of '<' in all pack functions
 objects = dict()
 nextObjUid = 0
+def colorNetPack(c):
+	return struct.pack('!BBBB', *[int(v*255) for v in c])
 def removeAll():
 	global objects, nextObjUid
 	objects = dict()
@@ -14,18 +16,14 @@ def getUid():
 		nextObjUid = (nextObjUid+1)%m
 	return nextObjUid
 class Obj:
-	def __init__(self, mId, collisionClass, color=(0.8, 0.8, 0.8, 1.0), solid=True, name = ""):
+	def __init__(self, collisionClass, color=(0.8, 0.8, 0.8, 1.0), name = ""):
 		global objects
-		self.solid = solid
 		self.collisionClass = collisionClass
 		self.collisions = set()
 		self.color = color
-		self.mid = mId
 		self.uid = getUid()
 		self.name = name
-		self.predMode = 0 #prediction mode for clients.
 		self.revision = 0
-		self.pos = Placement()
 		objects[self.uid] = self
 	def setColor(self, c):
 		self.color = c
@@ -35,11 +33,27 @@ class Obj:
 		self.stepRevision()
 	def stepRevision(self):
 		self.revision = (self.revision+1)%100;
-	def netPack(self):
-		return struct.pack('!ib', self.uid, self.revision) + self.pos.netPack()
-	def netDef(self):
-		return struct.pack('!ibibBBBB', self.uid, self.revision, self.mid, self.predMode, int(self.color[0]*255), int(self.color[1]*255), int(self.color[2]*255), int(self.color[3]*255))+(self.name+'\0').encode("UTF-8", errors="replace")
 	def remove(self):
 		global objects
 		objects.pop(self.uid)
-
+class OctObj(Obj):
+	def __init__(self, mid, collisionClass, color=(0.8, 0.8, 0.8, 1.0), solid=True, name = ""):
+		super().__init__(collisionClass, color, name)
+		self.pos = Placement()
+		self.solid = solid
+		self.mid = mid
+	def netPack(self):
+		return struct.pack('!ib', self.uid, self.revision) + self.pos.netPack()
+	def netDef(self):
+		return struct.pack('!bibi', ord('o'), self.uid, self.revision, self.mid)+colorNetPack(self.color)+(self.name+'\0').encode("UTF-8", errors="replace")
+class LineObj(Obj):
+	def __init__(self, collisionClass, color=(0.8, 0.8, 0.8, 1.0)):
+		self.loc = (0,0,0)
+		self.offset = (1,0,0)
+		self.movement = 0
+		self.solid = True
+		super().__init__(collisionClass, color, "")
+	def netPack(self):
+		return struct.pack('!ii', self.uid, self.movement)
+	def netDef(self):
+		return struct.pack('!biiiiiii', ord('l'), self.uid, *(self.loc), *(self.offset))+colorNetPack(self.color)

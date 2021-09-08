@@ -24,12 +24,18 @@ typedef struct object{
 	int32_t uid;
 	int8_t revision;
 } object;
+typedef struct lineseg{
+	int32_t movement;
+	int32_t uid;
+} lineseg;
 struct frame_{
 	object* me;
 	object* obj;
+	lineseg* line;
 	int32_t* teamscores;
 	int8_t teamcount;
 	int32_t objcount;
+	int32_t linecount;
 };
 struct gamestate_{
 	int running;
@@ -58,15 +64,24 @@ extern void appendHistory(char* msg);
 typedef struct objDef{//An AVL tree (because I hate implementing RB trees...)
 	struct objDef* (child[2]);
 	struct objDef* parent;
-	char* name;
 	int height;
-	int id;
-	int modelId;
-	enum{WAITING, WAITINGVERSION, DONE} pending;//do we have the data for it yet?
 	int age;//For auto ageing
-	float color[4];
-	char predictionMode;
+	int id;
 	char revision;
+	enum{WAITING, WAITINGVERSION, DONE} pending;//do we have the data for it yet?
+	float color[4];
+	char otype;
+	union{
+		struct {
+			int modelId;
+			char* name;
+		} odat;
+		struct {
+			int32_t loc[3];
+			int32_t offset[3];
+			float vec[3];
+		} ldat;
+	};
 } objDef;
 extern objDef* objDefRoot;
 extern void objDefInit();

@@ -11,6 +11,7 @@
 #include "MB_ITQ.h"
 #include "LoadData.h"
 #include "Graphics.h"
+#include "ExternLinAlg.h"
 #include "Gamestate.h"
 
 struct gamestate_ gamestate = {.running = 1,
@@ -40,9 +41,11 @@ void processGraphicsRequests(){
 		uid = mb_itqDequeueNoBlock(&graphicsitq);
 	}
 }
-void processNetData(int8_t* buf){
+int processNetData(int8_t* buf){
+	int ret = 0;//Used to tell the main loop if this represents a new frame (for ageing definitions, input, etc)
 	int8_t* originalBuf = buf;//for freeing
 	if(!strncmp("FRME", (char*)buf, 4)){
+		ret = 1;
 		struct frame_* oldFrame = gamestate.frame;
 		struct frame_* frame = (struct frame_*)malloc(sizeof(struct frame_));
 		frame->me = NULL;
@@ -71,6 +74,17 @@ void processNetData(int8_t* buf){
 				frame->me = &(frame->obj[oidx]);
 			}
 		}
+		frame->linecount = ntohI32(*(int32_t*)buf);
+		buf+=4;
+		frame->line = (lineseg*)malloc(frame->linecount * sizeof(lineseg));
+		for(int lidx = 0; lidx < frame->linecount; lidx++){
+			lineseg l;
+			l.uid = ntohI32(*(int32_t*)buf);
+			buf+=4;
+			l.movement = ntohI32(*(int32_t*)buf);
+			buf+=4;
+			frame->line[lidx] = l;
+		}
 		//swap the frames
 		sem_wait(&(gamestate.frameAccess));
 		gamestate.frame = frame;
@@ -78,6 +92,7 @@ void processNetData(int8_t* buf){
 		//Free the old frame
 		if(oldFrame){
 			free(oldFrame->obj);
+			free(oldFrame->line);
 			free(oldFrame->teamscores);
 			free(oldFrame);
 		}
@@ -85,6 +100,7 @@ void processNetData(int8_t* buf){
 		appendHistory((char*)(buf+4));
 	}else if(!strncmp("ODEF", (char*)buf, 4)){
 		buf+=4;
+		uint8_t otype = *(buf++);
 		int32_t uid = ntohI32(*(int32_t*)buf);
 		buf+=4;
 		//self.uid, self.mid, self.predMode, self.color[0], self.color[1], self.color[2])+(self.name+'\0'
@@ -95,18 +111,37 @@ void processNetData(int8_t* buf){
 			t = objDefInsert(uid);
 		}
 		sem_post(&(gamestate.frameAccess));
-		t->revision = *(buf++);
-		t->modelId = ntohI32(*(int32_t*)buf);
-		buf+=4;
-		t->predictionMode = *(buf++);
+		t->otype = otype;
+		if(otype == 'o'){
+			t->revision = *(buf++);
+			t->odat.modelId = ntohI32(*(int32_t*)buf);
+			buf+=4;
+		}else if(otype == 'l'){
+			for(int dimidx = 0; dimidx < 3; dimidx++){
+				t->ldat.loc[dimidx] = ntohI32(*(int32_t*)buf);
+				buf+=4;
+			}
+			for(int dimidx = 0; dimidx < 3; dimidx++){
+				int32_t val = ntohI32(*(int32_t*)buf);
+				t->ldat.offset[dimidx] = val;
+				t->ldat.vec[dimidx] = val;
+				buf+=4;
+			}
+			norm3f(t->ldat.vec);
+		}else{
+			assert(otype == 's');
+			assert(0);//Temporary
+		}
 		uint8_t color[4];
 		memcpy(color, buf, 4);
 		for(int chanIdx = 0; chanIdx < 4; chanIdx++){
 			t->color[chanIdx] = (float)(color[chanIdx]) / 255.0;
 		}
 		buf+=4;
-		t->name = calloc(strlen((char*)buf)+1, 1);
-		strcpy(t->name, (char*)buf);
+		if(otype == 'o'){//FIXME move color after name
+			t->odat.name = calloc(strlen((char*)buf)+1, 1);
+			strcpy(t->odat.name, (char*)buf);
+		}
 		t->pending = DONE;
 	}else if(!strncmp("ASGN", (char*)buf, 4)){
 		buf += 4;
@@ -120,6 +155,7 @@ void processNetData(int8_t* buf){
 		}else printf("Unknown message type %.4s\n", buf);
 	}
 	free(originalBuf);
+	return ret;
 }
 
 int main(int argc, char** argv){
@@ -147,21 +183,25 @@ int main(int argc, char** argv){
 		processGraphicsRequests();
 		updateRotations(120);
 		if(msg){
-			//if we haven't seen this object in some time, delete it.
-			sem_wait(&(gamestate.frameAccess));
-			objDefDeleteOld(30);
-			objDefAgeAll();
-			sem_post(&(gamestate.frameAccess));
+			//did we get a frame message? if so, then we can step our frame-dependent stuff
+			int newframe = 0;
 			while(msg){
-				processNetData((int8_t*)msg);
+				newframe |= processNetData((int8_t*)msg);
 				msg = mb_itqDequeueNoBlock(&netitq);
 			}
-			//only send controls as often as we recieve data
-			if(controlChanged){
-				sendInputs();
-				controlChanged = 0;
+			if(newframe){
+				//if we haven't seen this object in some time, delete it.
+				sem_wait(&(gamestate.frameAccess));
+				objDefDeleteOld(30);
+				objDefAgeAll();
+				sem_post(&(gamestate.frameAccess));
+				//only send controls as often as we recieve frames
+				if(controlChanged){
+					sendInputs();
+					controlChanged = 0;
+				}
+				sendOrientation(gamestate.localRotation);
 			}
-			sendOrientation(gamestate.localRotation);
 		}
 	}
 	gamestate.running = 0;

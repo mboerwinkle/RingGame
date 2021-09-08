@@ -6,7 +6,7 @@
 #include <GLFW/glfw3.h>
 #include "LoadData.h"
 #include "loadJsonConfig.h"
-
+#include "ExternLinAlg.h"
 int modelCount;
 struct model *models;
 struct font myfont;
@@ -15,8 +15,6 @@ float* stars;
 GLuint star_buffer;
 double maxd3(double a, double b, double c);
 struct model loadModel(FILE* input, double size);
-extern void cross(float* res, float* a, float* b);
-extern void norm3f(float* v);
 
 void populatebPts(struct model* i){//This function populates teh model 'Points' attribute. This is what will be passed to gl.
 	i->points = calloc(i->facetCount*3 ,sizeof(struct bPoint));

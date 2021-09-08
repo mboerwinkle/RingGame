@@ -10,20 +10,20 @@ void quat_norm(float* t){
 	t[2]/=len;
 	t[3]/=len;
 }
-void quat_rotateBy(float* ret, float* by){
-	quat_mult(ret, ret, by);
+void quat_rotateBy(float* ret, float* strt, float* by){
+	quat_mult(ret, strt, by);
 }
 void quat_rotX(float* ret, float* strt, float r){
 	r /= 2.0;
-	quat_rotateBy(ret, (float[4]){cos(r), sin(r), 0, 0});
+	quat_rotateBy(ret, strt, (float[4]){cos(r), sin(r), 0, 0});
 }
 void quat_rotY(float* ret, float* strt, float r){
 	r /= 2.0;
-	quat_rotateBy(ret, (float[4]){cos(r), 0, sin(r), 0});
+	quat_rotateBy(ret, strt, (float[4]){cos(r), 0, sin(r), 0});
 }
 void quat_rotZ(float* ret, float* strt, float r){
 	r /= 2.0;
-	quat_rotateBy(ret, (float[4]){cos(r), 0, 0, sin(r)});
+	quat_rotateBy(ret, strt, (float[4]){cos(r), 0, 0, sin(r)});
 }
 void quat_mult(float* ret, float* a, float* b){
 	float t[4];//fixme dont have save. instead return an array

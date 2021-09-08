@@ -37,8 +37,9 @@ GLfloat cam_trs[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};//transla
 GLfloat mod_rot[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};//rotate point based on model rotation
 GLfloat mod_scl[16] = {-1, 0, 0, 0, 0, -1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1};//Scale model
 GLfloat cam_lens[16];//Camera lens (clipping, fov, etc)
+GLfloat cam_lens_distant[16];
 GLfloat cam_lens_ortho[16];
-struct shaderProg solidShader, starShader, hudShader;
+struct shaderProg solidShader,lineShader, starShader, hudShader;
 
 void cerr(char* msg){
 	int err = glGetError();
@@ -82,15 +83,16 @@ void printGLShaderErrors(GLuint shader){
 	printf("GL Info Log: %s\n", glMsgBuf);
 }
 void drawStars(){
-	glDisable(GL_DEPTH_TEST);
+	glEnable(GL_DEPTH_TEST);
 	glUseProgram(starShader.program);
 	cerr("After use program (stars)");
 	glBindBuffer(GL_ARRAY_BUFFER, star_buffer);
 	glVertexAttribPointer(starShader.a_loc, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*) 0);
-	glUniformMatrix4fv(starShader.u_lens, 1, GL_FALSE, cam_lens);
+	glUniformMatrix4fv(starShader.u_lens, 1, GL_FALSE, cam_lens_distant);
 	glUniformMatrix4fv(starShader.u_cam, 1, GL_FALSE, cam_mat);
 	glUniform3f(starShader.u_offset, cloc[0], cloc[1], cloc[2]);
 	glDrawArrays(GL_POINTS, 0, starCount);
+	glClear(GL_DEPTH_BUFFER_BIT);
 }
 char* readFileContents(char* path){
 	FILE* fp = fopen(path, "r");
@@ -154,6 +156,23 @@ void requestODef(int32_t uid){
 	*msg = uid;
 	mb_itqAdd(&graphicsitq, msg);
 }
+objDef* objDefGetRev(int id, char rev){
+	objDef* o = objDefGet(id);
+	if(o){
+		o->age = 0;
+		if(o->pending != WAITING){
+			if(rev != o->revision && o->pending == DONE){
+				o->pending = WAITINGVERSION;
+				requestODef(id);
+			}
+			return o;
+		}
+	}else{
+		objDefInsert(id);
+		requestODef(id);
+	}
+	return NULL;
+}
 float teamcolors[8] = {0.0, 1.0, 0.941, 1.0, 1.0, 0.0, 0.941, 1.0};
 void drawFrame(struct frame_* frame){
 	objDef* mydef = objDefGet(gamestate.myShipId);
@@ -166,7 +185,7 @@ void drawFrame(struct frame_* frame){
 	glhLookAtf2(cam_mat, (float[3]){0.0f,0.0f,0.0f}, front, up);//eye stays at 0 since we use a separate method for offsets
 	if(mydef && mydef->pending != WAITING && me){
 		memcpy(cloc, me->loc, 3 * sizeof(int32_t));
-		float mdiameter = models[mydef->modelId].diameter;
+		float mdiameter = models[mydef->odat.modelId].diameter;
 		for(int dim = 0; dim < 3; dim++){
 			cloc[dim] += (-1.2 * front[dim] + 0.5 * up[dim]) * mdiameter;
 		}
@@ -174,19 +193,22 @@ void drawFrame(struct frame_* frame){
 	drawStars();
 	for(int oidx = 0; oidx < frame->objcount; oidx++){
 		object* obj = &(frame->obj[oidx]);
-		objDef* odef = objDefGet(obj->uid);
+		objDef* odef = objDefGetRev(obj->uid, obj->revision);
 		if(odef){
-			odef->age = 0;
-			if(odef->pending != WAITING){
-				drawModel(odef->modelId, odef->color, obj->loc, obj->rot, odef->name);
-				if(odef->revision != obj->revision && odef->pending == DONE){
-					odef->pending = WAITINGVERSION;
-					requestODef(obj->uid);
-				}
-			}
-		}else{
-			objDefInsert(obj->uid);
-			requestODef(obj->uid);
+			assert(odef->otype == 'o');
+			drawModel(odef->odat.modelId, odef->color, obj->loc, obj->rot, odef->odat.name);
+		}
+	}
+	for(int lidx = 0; lidx < frame->linecount; lidx++){
+		lineseg* line = &(frame->line[lidx]);
+		objDef* odef = objDefGetRev(line->uid, -1);
+		if(odef){
+			assert(odef->otype == 'l');
+			int32_t* loc = odef->ldat.loc;
+			float* vec = odef->ldat.vec;
+			int32_t movement = line->movement;
+			int32_t floc[3] = {loc[0]+(vec[0]*movement), loc[1]+(vec[1]*movement), loc[2]+(vec[2]*movement)};
+			drawLine(floc, odef->ldat.offset, odef->color);
 		}
 	}
 	for(int tIdx = 0; tIdx < frame->teamcount; tIdx++){
@@ -285,6 +307,7 @@ void initGraphics(){
 	printf("FBSize %d %d\n", XRES, YRES);
 	glViewport(0, 0, XRES, YRES);
 	gluPerspective(cam_lens, 1.5, XRES/(float)YRES, 100, 200000);//vfov was 1.22
+	gluPerspective(cam_lens_distant, 1.5, XRES/(float)YRES, 1000, 2000000000);
 	glOrthoEquiv(cam_lens_ortho, 0, 1, 1, 0, -1, 1);
 	//glDepthFunc(GL_LESS);
 	//glClearDepth(1.0);
@@ -292,7 +315,9 @@ void initGraphics(){
 	//glEnable(GL_BLEND);
 	//glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	solidShader = createShader("gl/solid.vert", "gl/color.frag");
-	starShader = createShader("gl/star.vert", "gl/white.frag");
+	//starShader = createShader("gl/star.vert", "gl/white.frag");
+	lineShader = createShader("gl/line.vert", "gl/color.frag");
+	starShader = createShader("gl/star.vert", "gl/color.frag");
 	hudShader = createShader("gl/hud.vert", "gl/color.frag");
 	cerr("After enableVertexAttrib");
 	puts("Done initializing graphics");
@@ -326,7 +351,7 @@ void drawModel(int idx, float* color, int* loc, float* rot, char* name){
 	//mat4x4Multf(mod_rot, mod_rot, mod_scl);//Scale the initial model prior to rotation
 	glBindBuffer(GL_ARRAY_BUFFER, m->vertex_buffer);
 	glVertexAttribPointer(solidShader.a_loc, 3, GL_FLOAT, GL_FALSE, sizeof(struct bPoint), (void*) 0);
-	cerr("After AttribPtr");
+	cerr("After Model AttribPtr");
 	glBindBuffer(GL_ARRAY_BUFFER, m->norm_buffer);
 	glVertexAttribPointer(solidShader.a_norm, 3, GL_FLOAT, GL_FALSE, sizeof(struct bPoint), (void*) 0);
 	glUniformMatrix4fv(solidShader.u_lens, 1, GL_FALSE, cam_lens);
@@ -340,6 +365,20 @@ void drawModel(int idx, float* color, int* loc, float* rot, char* name){
 		getScreenFromWorld(loc, r);
 		if(r[2] > 0) drawHudText(name, &myfont, 0.5*r[0]+0.5, -0.5*r[1]+0.5, 0.01, textcolor, strlen(name));
 	}
+}
+void drawLine(int32_t* loc, int32_t* offset, float* color){
+	glEnable(GL_DEPTH_TEST);
+	glUseProgram(lineShader.program);
+	cerr("After use program (line)");
+	float l[6] = {loc[0]-cloc[0], loc[1]-cloc[1], loc[2]-cloc[2], loc[0]+offset[0]-cloc[0], loc[1]+offset[1]-cloc[1], loc[2]+offset[2]-cloc[2]};
+	glBindBuffer(GL_ARRAY_BUFFER, 0);//FIXME is this needed? //FIXME premake a colorful line-art missile and pass it in array buffer.
+	glVertexAttribPointer(lineShader.a_loc, 3, GL_FLOAT, GL_FALSE, 0, l);
+	cerr("After Line AttribPtr");
+	glUniformMatrix4fv(lineShader.u_lens, 1, GL_FALSE, cam_lens);
+	glUniformMatrix4fv(lineShader.u_cam, 1, GL_FALSE, cam_mat);
+	glUniform4f(lineShader.u_color, color[0], color[1], color[2], color[3]);
+	glDrawArrays(GL_LINES, 0, 2);
+	cerr("test");
 }
 void drawHudText(char* str, struct font* f, double x, double y, double scale, float* color, int len){
 	glDisable(GL_DEPTH_TEST);

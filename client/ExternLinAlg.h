@@ -1,26 +1,27 @@
 #ifndef EXTERNLINALG_H
 #define EXTERNLINALG_H
+#include <math.h>
 #include <string.h>
-float distv3f(float* v){
+static inline float distv3f(float* v){
 	float d = 0;
 	for(int idx = 0; idx < 3; idx++){
 		d += v[idx]*v[idx];
 	}
 	return sqrt(d);
 }
-void norm3f(float* v){
+static inline void norm3f(float* v){
 	float d = distv3f(v);
 	v[0] /= d;
 	v[1] /= d;
 	v[2] /= d;
 }
 
-void cross(float* res, float* a, float* b){
+static inline void cross(float* res, float* a, float* b){
 	res[0]=a[1]*b[2]-a[2]*b[1];
 	res[1]=a[2]*b[0]-a[0]*b[2];
 	res[2]=a[0]*b[1]-a[1]*b[0];
 }
-void quatMult(float* a, float* b, float* r){
+static inline void quatMult(float* a, float* b, float* r){
 	float ret[4];
 	ret[0]=(b[0] * a[0] - b[1] * a[1] - b[2] * a[2] - b[3] * a[3]);
 	ret[1]=(b[0] * a[1] + b[1] * a[0] + b[2] * a[3] - b[3] * a[2]);
@@ -29,14 +30,14 @@ void quatMult(float* a, float* b, float* r){
 	memcpy(r, ret, 4*sizeof(float));
 }
 
-void rotateVec(float* t, float* r, float* ret){
+static inline void rotateVec(float* t, float* r, float* ret){
 	float p[4] = {0, t[0], t[1], t[2]};
 	float revRot[4] = {r[0], -r[1], -r[2], -r[3]};
 	quatMult(r, p, p);
 	quatMult(p, revRot, p);
 	memcpy(ret, &(p[1]), 3*sizeof(float));
 }
-void mat4x4Multf(float* res, float* m1, float* m2){
+static inline void mat4x4Multf(float* res, float* m1, float* m2){
 	for(int x = 0; x < 4; x++){
 		for(int y = 0; y < 4; y++){
 			float v = 0;
@@ -47,7 +48,7 @@ void mat4x4Multf(float* res, float* m1, float* m2){
 		}
 	}
 }
-void mat4x4By4x1Multf(float* res, float* m1, float* m2){
+static inline void mat4x4By4x1Multf(float* res, float* m1, float* m2){
 	for(int y = 0; y < 4; y++){
 		float v = 0;
 		for(int i = 0; i < 4; i++){
@@ -56,7 +57,7 @@ void mat4x4By4x1Multf(float* res, float* m1, float* m2){
 		res[y] = v;
 	}
 }
-void mat4x4fromQuat(float* M, float *rot){
+static inline void mat4x4fromQuat(float* M, float *rot){
 	M[0] = 1-2*rot[2]*rot[2]-2*rot[3]*rot[3];
 	M[1] = 2*rot[1]*rot[2]+2*rot[0]*rot[3];
 	M[2] = 2*rot[1]*rot[3]-2*rot[0]*rot[2];
@@ -74,17 +75,17 @@ void mat4x4fromQuat(float* M, float *rot){
 	M[14] = 0;
 	M[15] = 1;
 }
-void mat4x4Scalef(float* res, float xs, float ys, float zs){
+static inline void mat4x4Scalef(float* res, float xs, float ys, float zs){
 	res[0] *= xs;
 	res[5] *= ys;
 	res[9] *= zs;
 }
-void mat4x4Transf(float* res, float x, float y, float z){
+static inline void mat4x4Transf(float* res, float x, float y, float z){
 	res[12] += x;
 	res[13] += y;
 	res[14] += z;
 }
-void mat4x4idenf(float* res){
+static inline void mat4x4idenf(float* res){
 	for(int i = 0; i < 16; i++) res[i] = 0.0;
 	res[0] = 1.0;
 	res[5] = 1.0;
@@ -93,7 +94,7 @@ void mat4x4idenf(float* res){
 }
 
 //https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/gluPerspective.xml
-void gluPerspective(float* m, float fovy, float aspect, float zNear, float zFar){
+static inline void gluPerspective(float* m, float fovy, float aspect, float zNear, float zFar){
 	float f = 1.0/tan(fovy/2.0);
 	m[0] = f/aspect;
 	m[1] = 0;
@@ -113,7 +114,7 @@ void gluPerspective(float* m, float fovy, float aspect, float zNear, float zFar)
 	m[15] = 0;
 }
 //https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/glOrtho.xml
-void glOrthoEquiv(float* m, float left, float right, float bottom, float top, float nearval, float farval){
+static inline void glOrthoEquiv(float* m, float left, float right, float bottom, float top, float nearval, float farval){
 	m[0] = 2.0/(right-left);
 	m[1] = 0;
 	m[2] = 0;
@@ -132,7 +133,7 @@ void glOrthoEquiv(float* m, float left, float right, float bottom, float top, fl
 	m[15] = 1;
 }
 //https://www.khronos.org/opengl/wiki/GluLookAt_code
-void glhLookAtf2( float *matrix, float *eyePosition3D, float *center3D, float *upVector3D ){
+static inline void glhLookAtf2( float *matrix, float *eyePosition3D, float *center3D, float *upVector3D ){
 	float forward[3], side[3], up[3];
 	float matrix2[16], resultMatrix[16];
 	// --------------------

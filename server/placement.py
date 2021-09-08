@@ -115,5 +115,4 @@ class Placement:
 	def moveAbs(self, loc):
 		self.loc = loc.copy()
 	def netPack(self):
-		l = self.loc
-		return struct.pack('!iii', l[0], l[1], l[2])+self.rot.netpack()
+		return struct.pack('!iii', *(self.loc))+self.rot.netpack()

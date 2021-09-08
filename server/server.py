@@ -9,7 +9,7 @@ import threading
 import os
 from collections import deque as deque
 import obj
-
+import placement
 from placement import Placement
 from placement import Quat
 import waitFramerate
@@ -20,7 +20,6 @@ framerate = 30.0
 con_vel = 3.0/framerate #it takes a third of a second for binary input players to go from neutral to maximum control
 collisionRules = [
 [0, 1, 0, 0],#rings
-#[0, 1, 1, 0],
 [1, 1, 1, 1],#ships
 [0, 1, 0, 1],#asteroids
 #[0, 1, 1, 1],
@@ -77,9 +76,9 @@ def setupNewRound():
 
 	for idx in range(10):
 		CommandPoint()
-	for idx in range(5):
-		asteroid = obj.Obj(random.choice((3, 4, 6)), 2)
-		asteroid.pos.randomize(20000)
+	for idx in range(100):
+		asteroid = obj.OctObj(random.choice((3, 4, 6)), 2)
+		asteroid.pos.randomize(60000)
 	#Team("Yellow", (1.0, 0.941, 0))
 
 def roundLoop():
@@ -104,15 +103,26 @@ def roundLoop():
 		bscollidedict = dict()#FIXME
 		bscollideind = 0
 		for o in obj.objects.values():
-			convcoord = ()
-			for idx in range(3):
-				convcoord = convcoord+(int(o.pos.loc[idx]/manifest['resolution']*2.0),)
-			pt = collide.createPoint(convcoord)
-			orient = collide.createOrientation(*o.pos.rot)
-			oinst = collide.newOInstance(manifest['models'][o.mid]['name'], o.collisionClass, pt, orient, 1.0)
-			collide.addInstance(oinst)
-			bscollidedict[bscollideind] = o
-			bscollideind+=1
+			if isinstance(o, obj.OctObj):
+				convcoord = [int(o.pos.loc[idx]/manifest['resolution']*2.0) for idx in range(3)]
+				pt = collide.createPoint(convcoord)
+				orient = collide.createOrientation(*o.pos.rot)
+				oinst = collide.newOInstance_o(o.collisionClass, pt, orient, manifest['models'][o.mid]['name'])
+				collide.addInstance(oinst)
+				bscollidedict[bscollideind] = o
+				bscollideind+=1
+			elif isinstance(o, obj.LineObj):
+				vec = o.offset[:]
+				placement.normalize(vec)
+				start = collide.createPoint([int((o.loc[idx] + vec[idx] * o.movement)/manifest['resolution']*2.0) for idx in range(3)])
+				offset = collide.createPoint([int(o.offset[idx]/manifest['resolution']*2.0) for idx in range(3)])
+				oinst = collide.newOInstance_l(o.collisionClass, start, offset)
+				collide.addInstance(oinst)
+				bscollidedict[bscollideind] = o
+				bscollideind+=1
+			else:
+				pass
+				#assert isinstance(o, obj.SphereObj)
 		collide.calculateScene()
 		c = collide.getCollisions()
 		collide.freeScene(myscene)
@@ -272,11 +282,15 @@ class Missile:
 			dm.remove()
 		Missile.deadMissiles = set()
 	def __init__(self, originObj):
-		self.obj = obj.Obj(5, 3)
-		self.obj.pos.copy(originObj.pos)
-		self.obj.pos.moveForward(0.75*(manifest['models'][self.obj.mid]['diameter']+manifest['models'][originObj.mid]['diameter']))
+		self.obj = obj.LineObj(3)
+		tempplacement = Placement()
+		tempplacement.copy(originObj.pos)
+		tempplacement.moveForward(0.75*manifest['models'][originObj.mid]['diameter'])
+		self.obj.loc = tempplacement.loc
+		diameter = manifest['models'][5]['diameter']
+		self.obj.offset = [int(x*diameter) for x in tempplacement.rot.forward()]
 		self.lifetime = int(3*framerate)
-		self.speed = manifest['models'][self.obj.mid]['speed']/framerate
+		self.speed = int(manifest['models'][5]['speed']/framerate)
 		Missile.missiles.add(self)
 	def die(self):
 		Missile.deadMissiles.add(self)
@@ -287,7 +301,7 @@ class Missile:
 		self.lifetime -= 1
 		if self.lifetime <= 0:
 			self.die()
-		self.obj.pos.moveForward(self.speed)
+		self.obj.movement += self.speed
 	def removeAll():
 		Missile.missiles = set()
 		Missile.deadMissiles = set()
@@ -299,8 +313,8 @@ class CommandPoint:
 		if team != None:
 			totemColor = team.color
 		#The obj is the capture box. The totem is an optional auxillary solid marker
-		self.obj = obj.Obj(objMid, 0, color=(0.5, 0.75, 1.0, 0.5), solid=False)
-		self.totem = obj.Obj(totemMid, 0, color=totemColor, solid=True)
+		self.obj = obj.OctObj(objMid, 0, color=(0.5, 0.75, 1.0, 0.5), solid=False)
+		self.totem = obj.OctObj(totemMid, 0, color=totemColor, solid=True)
 		self.obj.pos.randomize(20000)
 		self.totem.pos = self.obj.pos
 		CommandPoint.commandobjects[self.obj] = self
@@ -387,7 +401,7 @@ class Client:
 		color = (0.7, 0.5, 0.5)
 		if self.team != None:
 			color = self.team.color
-		self.obj = obj.Obj(0, 1, color = color, name = self.name)
+		self.obj = obj.OctObj(0, 1, color = color, name = self.name)
 		self.obj.pos.randomize(20000)
 		self.sendAsg()
 	def die(self):
@@ -426,10 +440,20 @@ class Client:
 	def sendDef(self, o):
 		self.send(b"ODEF" + o.netDef())
 	def sendUpdate(self):
-		fMsg = b"FRME"+Team.netPack()+struct.pack('!i', len(obj.objects))
+		fMsg = [b"FRME", Team.netPack()]
+		octobj = list()
+		lineobj = list()
 		for o in obj.objects.values():
-			fMsg += o.netPack()
-		self.send(fMsg)
+			if isinstance(o, obj.OctObj):
+				octobj.append(o.netPack())
+			else:
+				assert isinstance(o, obj.LineObj)
+				lineobj.append(o.netPack())
+		fMsg.append(struct.pack('!i', len(octobj)))
+		fMsg += octobj
+		fMsg.append(struct.pack('!i', len(lineobj)))
+		fMsg += lineobj
+		self.send(b''.join(fMsg))
 	def sendmsg(self, msg):
 		self.send(msg.encode("UTF-8"))
 	def send(self, data):
