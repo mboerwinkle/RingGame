@@ -16,9 +16,12 @@ int utf8_isFirstByte(char b){
 	return (b>>7 == 0 || b>>5 == 0b110 || b>>4 == 0b1110 || b>>3 == 0b11110);
 }
 
-struct controlState control = {.s=0};
-struct controlState lastControl = {.s=0};
-char controlChanged;
+//Unlimited mouse movement (this isn't great, but it might remind me to revisit FIXME)
+#define DBL_MAX_CONTIG_INT 9007199254740991.0
+static_assert(sizeof(double) == 8);
+
+struct controlState control = {.s=0, .mousex=0.0, .mousey=0.0};
+struct controlState lastControl = {.s=0, .mousex=0.0, .mousey=0.0};
 
 void char_callback(GLFWwindow* window, unsigned int c){
 	int cpWidth = utf8proc_charwidth(c);
@@ -127,14 +130,27 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 		}
 	}
 }
+void cursorpos_callback(GLFWwindow* window, double xpos, double ypos){
+	assert(DBL_MAX_CONTIG_INT > abs(xpos) && DBL_MAX_CONTIG_INT > abs(ypos));
+	control.mousex = xpos;
+	control.mousey = ypos;
+}
+
+double updateRot_lastmx = 0.0;
+double updateRot_lastmy = 0.0;
 void updateRotations(float framerate){
 	objDef* mydef = objDefGet(gamestate.myShipId);
 	if(!mydef || mydef->pending == WAITING) return;//We don't know how fast to turn
 	float* lr = gamestate.localRotation;
 	float turnspeed = gamestate.turnspeed/framerate;
 	int32_t s = control.s;
-	double yaw = turnspeed * (((s>>1)&1) - ((s>>2)&1));
-	double pitch = turnspeed * (((s>>4)&1) - ((s>>3)&1));
+	double mxd = control.mousex-updateRot_lastmx;
+	double myd = control.mousey-updateRot_lastmy;
+	updateRot_lastmx = control.mousex;
+	updateRot_lastmy = control.mousey;
+	double mousespeedmult = 0.5;
+	double yaw = turnspeed * (((s>>1)&1) - ((s>>2)&1)) + turnspeed * mxd * mousespeedmult;
+	double pitch = turnspeed * (((s>>4)&1) - ((s>>3)&1)) + turnspeed * (-myd) * mousespeedmult;
 	double roll = turnspeed * (((s>>7)&1) - ((s>>5)&1));
 	//printf("Pitch: %.2lf  Yaw: %.2lf  Roll: %.2lf\n", pitch, yaw, roll);
 	quat_rotZ(lr, lr, yaw);
@@ -146,10 +162,6 @@ void updateRotations(float framerate){
 int handleInput(){
 	glfwPollEvents();
 	if(glfwWindowShouldClose(window)) return 1;
-	if(!memcmp(&control, &lastControl, sizeof(struct controlState)) == 0){
-		controlChanged = 1;
-	}
-	lastControl = control;
 	return 0;
 }
 

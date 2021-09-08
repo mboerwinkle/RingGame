@@ -88,10 +88,17 @@ void* netListenLoop(void* none){
 }
 
 void sendInputs(){
+	if(control.s == lastControl.s){
+		return;
+	}
 	char msg[51];
 	snprintf(msg+4, 46, "CTRL%x", control.s);
 	*((int32_t*)msg) = htonI32(strlen(msg+4));
 	sendMessage(msg, 4+strlen(msg+4), 1);//this should use a parallel UDP
+	// ensure we don't multisend certain events
+	control.s ^= control.s & CS_SENDONCEMAP;
+	// update lastControl
+	lastControl = control;
 }
 void sendOrientation(float* quat){
 	char msg[16] = "\0\0\0\0ORNT";

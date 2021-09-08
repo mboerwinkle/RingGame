@@ -177,6 +177,14 @@ int main(int argc, char** argv){
 	printf("# Setting Input Callbacks\n");
 	glfwSetKeyCallback(window, &key_callback);
 	glfwSetCharCallback(window, &char_callback);
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	if(glfwRawMouseMotionSupported()){
+		printf("Enabling Raw Mouse.\n");
+		glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+	}else{
+		printf("Raw Mouse not supported.\n");
+	}
+	glfwSetCursorPosCallback(window, &cursorpos_callback);
 	printf("# Entering Game Loop\n");
 	while (!handleInput()){
 		char* msg = mb_itqDequeueTimed(&netitq, 0, 8333333);//process input at 120fps
@@ -196,10 +204,7 @@ int main(int argc, char** argv){
 				objDefAgeAll();
 				sem_post(&(gamestate.frameAccess));
 				//only send controls as often as we recieve frames
-				if(controlChanged){
-					sendInputs();
-					controlChanged = 0;
-				}
+				sendInputs();
 				sendOrientation(gamestate.localRotation);
 			}
 		}
