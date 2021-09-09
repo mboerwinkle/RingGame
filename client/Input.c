@@ -148,9 +148,9 @@ void updateRotations(float framerate){
 	double myd = control.mousey-updateRot_lastmy;
 	updateRot_lastmx = control.mousex;
 	updateRot_lastmy = control.mousey;
-	double mousespeedmult = 0.5;
-	double yaw = turnspeed * (((s>>1)&1) - ((s>>2)&1)) + turnspeed * mxd * mousespeedmult;
-	double pitch = turnspeed * (((s>>4)&1) - ((s>>3)&1)) + turnspeed * (-myd) * mousespeedmult;
+	double mousespeedmult = 0.035;
+	double yaw = turnspeed * (((s>>1)&1) - ((s>>2)&1)) + mxd * mousespeedmult;
+	double pitch = turnspeed * (((s>>4)&1) - ((s>>3)&1)) + (-myd) * mousespeedmult;
 	double roll = turnspeed * (((s>>7)&1) - ((s>>5)&1));
 	//printf("Pitch: %.2lf  Yaw: %.2lf  Roll: %.2lf\n", pitch, yaw, roll);
 	quat_rotZ(lr, lr, yaw);

@@ -502,7 +502,7 @@ class Client:
 		speed = maniModel['speed']/framerate
 		trange = maniModel['trange']#throttle position range information
 		if self.obj:
-			self.obj.pos.rot = Quat.slerp(self.obj.pos.rot, self.targetOrientation, maxangle=manifest['models'][self.obj.mid]['turn']/framerate)
+			self.obj.pos.rot = Quat.slerp(self.obj.pos.rot, self.targetOrientation, t = 0.5, maxangle=manifest['models'][self.obj.mid]['turn']/framerate)
 		realthrottle = self.throttle
 		if self.throttle >= 0 :
 			realthrottle = trange[1]+(self.throttle*(trange[2]-trange[1]))

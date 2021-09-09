@@ -51,9 +51,13 @@ class Quat(list):
 		return res[1:]
 	def lerp(one, two, t):
 		i = 1.0-t
-		return Quat((two[0]*t+one[0]*i, two[1]*t+one[1]*i, two[1]*t+one[1]*i, two[1]*t+one[1]*i))
-	def slerp(one, two, t = 1.0, maxangle = 1.58):
+		ret = Quat((two[0]*t+one[0]*i, two[1]*t+one[1]*i, two[2]*t+one[2]*i, two[3]*t+one[3]*i))
+		normalize(ret)
+		return ret
+	def slerp(one, two, t = 1.0, maxangle = 3.142):
 		#per wikipedia and shoemake slerp, one*( (one^-1) * two )^t
+		maxangle *= 0.5
+		#theta is the angle on the quaternion sphere. There are two revolutions per every revolution on the quaternion sphere
 		theta = math.acos(one.dot(two))
 		# Long paths can be prevented by negating one end if the dot product, cos Ω, is negative, thus ensuring that −90° ≤ Ω ≤ 90°. (WIKIPEDIA)
 		negmult = 1
@@ -62,12 +66,12 @@ class Quat(list):
 			negmult = -1
 		if(t*theta > maxangle):
 			t = maxangle/theta
-		#print('{:.2f} {:.2f} {:.2f}'.format(theta, magnitude(one), magnitude(two)))
-		t = t/2
 		b = math.sin(theta)
+		if b == 0:
+			return Quat(c=two)
 		m1 = math.sin((1-t)*theta)/b
-		m2 = math.sin(t*theta)/b
-		ret = Quat((one[0]*m1+two[0]*m2*negmult, one[1]*m1+two[1]*m2*negmult, one[2]*m1+two[2]*m2*negmult, one[3]*m1+two[3]*m2*negmult))
+		m2 = negmult * math.sin(t*theta)/b
+		ret = Quat((one[0]*m1+two[0]*m2, one[1]*m1+two[1]*m2, one[2]*m1+two[2]*m2, one[3]*m1+two[3]*m2))
 		normalize(ret)
 		return ret
 	def randomize(self):
