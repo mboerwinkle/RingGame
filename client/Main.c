@@ -41,6 +41,8 @@ void processGraphicsRequests(){
 		uid = mb_itqDequeueNoBlock(&graphicsitq);
 	}
 }
+int8_t pingmessage[8] = {0x0,0x0,0x0,0x4,'P','I','N','G'};
+int8_t pongmessage[8] = {0x0,0x0,0x0,0x4,'P','O','N','G'};
 int processNetData(int8_t* buf){
 	int ret = 0;//Used to tell the main loop if this represents a new frame (for ageing definitions, input, etc)
 	int8_t* originalBuf = buf;//for freeing
@@ -96,6 +98,10 @@ int processNetData(int8_t* buf){
 			free(oldFrame->teamscores);
 			free(oldFrame);
 		}
+	}else if(!strncmp("PING", (char*)buf, 4)){
+		sendMessage(pongmessage, 8, 1);
+	}else if(!strncmp("PONG", (char*)buf, 4)){
+		
 	}else if(!strncmp("CONS", (char*)buf, 4)){
 		appendHistory((char*)(buf+4));
 	}else if(!strncmp("ODEF", (char*)buf, 4)){
@@ -152,13 +158,14 @@ int processNetData(int8_t* buf){
 	}else{
 		if(strlen((char*)buf) < 4){
 			printf("Unknown short message\n");
-		}else printf("Unknown message type %.4s\n", buf);
+		}else printf("Unknown message type '%.4s'\n", buf);
 	}
 	free(originalBuf);
 	return ret;
 }
 
 int main(int argc, char** argv){
+	appendHistory("Welcome to RingGame.");
 	printf("# Initializing Object Definition Tree\n");
 	objDefInit();
 	printf("# Initializing Graphics\n");

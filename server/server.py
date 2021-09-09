@@ -52,6 +52,7 @@ def init():
 	startNetworking()
 	#create collider object
 	collide = hypercol.Hypercol(3)#request a 3D collider
+	print("Process:",os.getpid())
 	for x in manifest["models"]:
 		collide.loadOClass(x['name'], "assets/nhc3/"+x['name']+".nhc3")
 	while True:
@@ -87,7 +88,13 @@ def roundLoop():
 	winner = None
 	#test_iterations = 100
 	test_iterations = -1
+	framecounter = 0
 	while (not winner) and test_iterations != 0:
+		framecounter = (framecounter+1)%framerate
+		#operations to do once per second
+		if framecounter == 0:
+			for c in Client.clients:
+				c.ping()
 		if test_iterations > 0:
 			test_iterations -= 1
 		clientLock.release()
@@ -356,10 +363,10 @@ class Client:
 		self.dead = False
 		self.name = "client_"+str(self.id)
 		self.team = None
+		self.pingtime = 999 #ms
+		self.pingsenttime = None
 		self.setTeam(Team.select())
 		Client.clients.add(self)
-
-
 	def runcommand(self, tok):
 		print(self.name+' executing: '+' '.join(tok))
 		try:
@@ -424,8 +431,13 @@ class Client:
 			nextMsgLen = struct.unpack('!i', self.buf[:4])[0]
 			if remainingLen-4 >= nextMsgLen:
 				foundSomething = True
-				myinput = CliInput(self.id, self.buf[4:nextMsgLen+4])
-				cliInputs.appendleft(myinput)
+				msg = self.buf[4:nextMsgLen+4]
+				if msg == b'PING':
+					self.pinghandle()
+				elif msg == b'PONG':
+					self.ponghandle()
+				else:
+					cliInputs.appendleft(CliInput(self.id, msg))
 				self.buf = self.buf[nextMsgLen+4:]
 	def setTeam(self, team):
 		if(self.team == team):
@@ -462,6 +474,15 @@ class Client:
 		except Exception as e:
 			print("Socket failed to write")
 			self.ts_remove()
+	def ping(self):
+		self.send(b'PING')
+		self.pingsenttime = time.time()
+	def pinghandle(self):
+		self.send(b'PONG')
+	def ponghandle(self):
+		if self.pingsenttime:
+			self.pingtime = int(1000 * (time.time()-self.pingsenttime))
+		self.pingsenttime = None
 	def controlRange(targetValue, currentValue):
 		delta = targetValue-currentValue
 		return currentValue + max(-con_vel, min(con_vel, delta))
