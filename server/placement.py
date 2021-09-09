@@ -8,6 +8,11 @@ def normalize(v):
 	l = math.sqrt(l)
 	for idx in range(len(v)):
 		v[idx] /= l
+def magnitude(v):
+	l = 0
+	for axis in v:
+		l += axis**2
+	return math.sqrt(l)
 class Quat(list):
 	netPackMult = 32000.0
 	def __init__(self, c = (1.0, 0.0, 0.0, 0.0)):
@@ -47,16 +52,24 @@ class Quat(list):
 	def lerp(one, two, t):
 		i = 1.0-t
 		return Quat((two[0]*t+one[0]*i, two[1]*t+one[1]*i, two[1]*t+one[1]*i, two[1]*t+one[1]*i))
-	def slerp(one, two, t):
+	def slerp(one, two, t = 1.0, maxangle = 1.58):
 		#per wikipedia and shoemake slerp, one*( (one^-1) * two )^t
 		theta = math.acos(one.dot(two))
-		if theta < 0:#prevent wrong direction arcing
-			theta = -theta
+		# Long paths can be prevented by negating one end if the dot product, cos Ω, is negative, thus ensuring that −90° ≤ Ω ≤ 90°. (WIKIPEDIA)
+		negmult = 1
+		if theta > math.pi/2:
+			theta = -(theta-math.pi) # we need to do this to keep the rotation speed right
+			negmult = -1
+		if(t*theta > maxangle):
+			t = maxangle/theta
+		#print('{:.2f} {:.2f} {:.2f}'.format(theta, magnitude(one), magnitude(two)))
 		t = t/2
 		b = math.sin(theta)
-		m1 = math.sin((1-t)*theta)/s
-		m2 = math.sin(t*theta)/s
-		return Quat((one[0]*m1+two[0]*m2, one[1]*m1+two[1]*m2, one[2]*m1+two[2]*m2, one[3]*m1+two[3]*m2))
+		m1 = math.sin((1-t)*theta)/b
+		m2 = math.sin(t*theta)/b
+		ret = Quat((one[0]*m1+two[0]*m2*negmult, one[1]*m1+two[1]*m2*negmult, one[2]*m1+two[2]*m2*negmult, one[3]*m1+two[3]*m2*negmult))
+		normalize(ret)
+		return ret
 	def randomize(self):
 		for idx in range(4):
 			self[idx] = random.uniform(-1,1)
