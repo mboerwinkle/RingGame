@@ -15,7 +15,3 @@ From inside the server directory, run `python3 server.py`.
 From inside the client directory, run `make`.
 ### Running
 From inside the client directory, run `./ringgameclient [IP]`. If IP is not specified, localhost is assumed.
-## Stargen
-Generates randomly placed stars in a json file
-## Font3D
-Converts a png into triangle information for a font
