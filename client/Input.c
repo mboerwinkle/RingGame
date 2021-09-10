@@ -10,6 +10,7 @@
 #include "Network.h"
 #include "Gamestate.h"
 #include "Quaternion.h"
+#include "Config.h"
 
 int utf8_isFirstByte(char b){
 	//check for all Byte1 patterns (includes null byte)
@@ -148,7 +149,7 @@ void updateRotations(float framerate){
 	double myd = control.mousey-updateRot_lastmy;
 	updateRot_lastmx = control.mousex;
 	updateRot_lastmy = control.mousey;
-	double mousespeedmult = 0.035;
+	double mousespeedmult = 0.015 * V_CIMOUSESENSI->flot;
 	double yaw = turnspeed * (((s>>1)&1) - ((s>>2)&1)) + mxd * mousespeedmult;
 	double pitch = turnspeed * (((s>>4)&1) - ((s>>3)&1)) + (-myd) * mousespeedmult;
 	double roll = turnspeed * (((s>>7)&1) - ((s>>5)&1));

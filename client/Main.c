@@ -13,6 +13,7 @@
 #include "Graphics.h"
 #include "ExternLinAlg.h"
 #include "Gamestate.h"
+#include "Config.h"
 
 struct gamestate_ gamestate = {.running = 1,
 .myShipId = -1,
@@ -166,6 +167,8 @@ int processNetData(int8_t* buf){
 
 int main(int argc, char** argv){
 	appendHistory("Welcome to RingGame.");
+	printf("# Initializing Configuration\n");
+	initConfig();
 	printf("# Initializing Object Definition Tree\n");
 	objDefInit();
 	printf("# Initializing Graphics\n");

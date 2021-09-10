@@ -58,7 +58,8 @@ class Quat(list):
 		#per wikipedia and shoemake slerp, one*( (one^-1) * two )^t
 		maxangle *= 0.5
 		#theta is the angle on the quaternion sphere. There are two revolutions per every revolution on the quaternion sphere
-		theta = math.acos(one.dot(two))
+		dotv = one.dot(two)
+		theta = math.acos(-1.0 if dotv < -1.0 else 1.0 if dotv > 1.0 else dotv)
 		# Long paths can be prevented by negating one end if the dot product, cos Ω, is negative, thus ensuring that −90° ≤ Ω ≤ 90°. (WIKIPEDIA)
 		negmult = 1
 		if theta > math.pi/2:
