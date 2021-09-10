@@ -11,6 +11,7 @@
 #include "Gamestate.h"
 #include "Quaternion.h"
 #include "Config.h"
+#include "Command.h"
 
 int utf8_isFirstByte(char b){
 	//check for all Byte1 patterns (includes null byte)
@@ -78,13 +79,19 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 				memmove(C.comm + C.cursorPos - cpWidth, C.comm + C.cursorPos, COMMAND_SIZE - C.cursorPos);
 				C.cursorPos -= cpWidth;
 				C.commLen -= cpWidth;
-			}else if(key == GLFW_KEY_ENTER && C.commLen != 0){
-				printf("%s\n", C.comm);
-				char netmsg[10+C.commLen];
-				sprintf(netmsg+4, "COMM%s", C.comm);
-				*(int32_t*)netmsg = htonI32(strlen(netmsg+4));
+			}else if(key == GLFW_KEY_ENTER){
 				appendHistory(C.comm);
-				sendMessage(netmsg, 4+strlen(netmsg+4), 0);
+				if(C.commLen != 0){
+					printf("%s\n", C.comm);
+					if(C.comm[0] == '$'){
+						localCommand(C.comm);
+					}else{
+						char netmsg[10+C.commLen];
+						sprintf(netmsg+4, "COMM%s", C.comm);
+						*(int32_t*)netmsg = htonI32(strlen(netmsg+4));
+						sendMessage(netmsg, 4+strlen(netmsg+4), 0);
+					}
+				}
 				C.comm[0] = 0;
 				C.commLen = 0;
 				C.cursorPos = 0;

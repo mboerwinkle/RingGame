@@ -54,7 +54,7 @@ config_* getConfig(char* str){
 	int end = config_count;
 	while(start < end){
 		int mid = (start+end)/2;
-		int cmp = strncmp(str, config[mid]->name, CONFIGLEN);
+		int cmp = strncasecmp(str, config[mid]->name, CONFIGLEN);
 		if(cmp < 0){
 			end = mid;
 		}else if(cmp > 0){
@@ -64,6 +64,51 @@ config_* getConfig(char* str){
 		}
 	}
 	return NULL;
+}
+char* configToString(config_* var){
+	int retmaxlen = 1000;
+	char ret[retmaxlen+1];
+	enum configType t = var->type;
+	if(t == STRG){
+		strncpy(ret, var->strg, retmaxlen);
+	}else if(t == FLOT){
+		snprintf(ret, retmaxlen, "%lf", var->flot);
+	}else if(t == INTE){
+		snprintf(ret, retmaxlen, "%d", var->inte);
+	}else if(t == BOOL){
+		if(var->inte){
+			strcpy(ret, "true");
+		}else{
+			strcpy(ret, "false");
+		}
+	}
+	char* mret = malloc(strlen(ret)+1);
+	strcpy(mret, ret);
+	return mret;
+}
+void configFromString(config_* var, char* str){
+	enum configType t = var->type;
+	if(t == STRG){
+		// threadsafe handoff
+		char* oldstr = var->strg;
+		char* newstr = malloc(strlen(str)+1);
+		strcpy(newstr, str);
+		var->strg = newstr;
+		free(oldstr);
+	}else{
+		if(strlen(str) < 1) return;
+		if(t == FLOT){
+			var->flot = strtod(str, NULL);
+		}else if(t == INTE){
+			var->inte = atoi(str);
+		}else if(t == BOOL){
+			if(str[0] == 't' || str[0] == 'T'){
+				var->inte = 1;
+			}else if(str[0] == 'f' || str[0] == 'F'){
+				var->inte = 0;
+			}
+		}
+	}
 }
 
 void mergeSortConfig(int start, int end){
@@ -84,7 +129,7 @@ void mergeSortConfig(int start, int end){
 			jstr = config[j]->name;
 		}
 		if(istr && jstr){
-			if(strcmp(istr, jstr) < 0){
+			if(strcasecmp(istr, jstr) < 0){
 				res[residx] = config[i];
 				i++;
 			}else{
@@ -132,6 +177,6 @@ void initConfig(){
 		char* str = initconfigpairings[idx+1];
 		*ptr = getConfig(str);
 		assert(*ptr != NULL && "Internal config doesn't exist");
-		assert(0 == strcmp((*ptr)->name, str));
+		assert(0 == strcasecmp((*ptr)->name, str));
 	}
 }

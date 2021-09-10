@@ -30,5 +30,7 @@ extern config_** config;
 extern int config_count;
 
 extern config_* getConfig(char* str);
+extern char* configToString(config_* var);
+extern void configFromString(config_* var, char* str);
 extern void initConfig();
 #endif
